@@ -33,7 +33,7 @@ headlines, thin-line tab bar.
 ```
 Price Checker/
 ├─ Average Price Checker.csv     source data (not read at runtime)
-├─ app/                          everything that gets deployed
+├─ docs/                         everything that gets deployed (Pages root)
 │  ├─ index.html
 │  ├─ styles.css
 │  ├─ app.js
@@ -54,7 +54,7 @@ Drop a new `Average Price Checker.csv` in this folder and run:
 python tools/build_bank.py
 ```
 
-Then bump `CACHE` in `app/sw.js` so installed copies pick up the new data.
+Then bump `CACHE` in `docs/sw.js` so installed copies pick up the new data.
 
 **What the builder keeps.** Of 1,320 rows in the file, 1,130 become playable:
 
@@ -74,7 +74,7 @@ and size out of the name, since those are shown as their own fields.
 Any static server will do:
 
 ```
-cd app && python -m http.server 8787
+cd docs && python -m http.server 8787
 ```
 
 Then open `http://localhost:8787`. On a phone, use **Share → Add to Home Screen**

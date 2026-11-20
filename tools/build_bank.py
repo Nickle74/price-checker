@@ -1,7 +1,7 @@
 import csv, json, re, os, collections
 
 SRC = "C:/Users/admin/OneDrive/Documents/Claude/Claude/Price Checker/Average Price Checker.csv"
-OUT = "C:/Users/admin/OneDrive/Documents/Claude/Claude/Price Checker/app/data/bottles.js"
+OUT = "C:/Users/admin/OneDrive/Documents/Claude/Claude/Price Checker/docs/data/bottles.js"
 
 CONTAINERS = ("GLASS","PLASTIC","ALUMINUM","CAN","TETRA","POUCH","BOX","CARTON","PET","ALUM")
 
