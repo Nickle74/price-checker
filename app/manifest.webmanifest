@@ -1,0 +1,17 @@
+{
+  "name": "price check",
+  "short_name": "price check",
+  "description": "Guess the average retail price of real spirits bottles. Ten bottles a round.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F3F0",
+  "theme_color": "#F4F3F0",
+  "categories": ["games", "trivia"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

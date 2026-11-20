@@ -1,0 +1,9 @@
+# Source data stays out of version control: the CSV carries supplier, UPC,
+# 9L case volumes, dollar sales and YoY movement. Only the derived
+# app/data/bottles.js (name, size, tier, average retail price) ships.
+*.csv
+
+# OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#F4F3F0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="price check">
+<meta name="description" content="Guess the average retail price of real spirits bottles. Ten bottles a round.">
+<title>price check</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== HOME ===================== -->
+  <section class="view view--home" id="view-home">
+    <header class="topbar">
+      <span class="wordmark">price check</span>
+      <button class="icon-btn" id="btn-guide-top" aria-label="How scoring works">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 1 1 3.2 2.9c-.6.2-.8.6-.8 1.2v.4"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/></svg>
+      </button>
+    </header>
+
+    <div class="scroll">
+      <h1 class="display">Think you know<br>what it costs?</h1>
+      <p class="sub">Ten real bottles a round. Guess the average shelf price &mdash; the closer you land, the more you score.</p>
+
+      <button class="hero" id="btn-play">
+        <span class="hero__glow" aria-hidden="true"></span>
+        <span class="hero__body">
+          <span class="hero__eyebrow" id="hero-eyebrow">10 bottles &middot; All categories</span>
+          <span class="hero__title">Start a round</span>
+          <span class="hero__meta" id="hero-meta">&nbsp;</span>
+        </span>
+        <span class="hero__go" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 12h13M12.5 6l6 6-6 6"/></svg>
+        </span>
+      </button>
+
+      <div class="stat-row">
+        <div class="stat"><span class="stat__n" id="st-best">&mdash;</span><span class="stat__l">Best round</span></div>
+        <div class="stat"><span class="stat__n" id="st-rounds">0</span><span class="stat__l">Rounds</span></div>
+        <div class="stat"><span class="stat__n" id="st-acc">&mdash;</span><span class="stat__l">Avg. off by</span></div>
+      </div>
+
+      <h2 class="section-h">Pick a category</h2>
+      <div class="chips" id="chips"></div>
+    </div>
+  </section>
+
+  <!-- ===================== ROUND ===================== -->
+  <section class="view view--round" id="view-round" hidden>
+    <header class="topbar">
+      <button class="icon-btn" id="btn-quit" aria-label="Quit round">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="pips" id="pips" role="progressbar" aria-label="Round progress"></div>
+      <span class="running" id="running">0</span>
+    </header>
+
+    <div class="scroll scroll--round">
+      <article class="bottle" id="bottle">
+        <div class="bottle__tags">
+          <span class="tag tag--cat" id="b-cat">Whiskey</span>
+          <span class="tag" id="b-tier">Premium</span>
+        </div>
+        <h2 class="bottle__name" id="b-name">Bottle name</h2>
+        <p class="bottle__brand" id="b-brand">Brand</p>
+        <div class="bottle__spec" id="b-spec"></div>
+      </article>
+
+      <div class="guess">
+        <span class="guess__label">Your guess</span>
+        <div class="guess__amount" id="g-amount"><span class="guess__cur">$</span><span id="g-digits">0</span></div>
+        <span class="guess__hint">Average retail, per bottle</span>
+      </div>
+    </div>
+
+    <div class="pad">
+      <div class="keys" id="keys"></div>
+      <button class="btn btn--primary" id="btn-lock" disabled>Lock it in</button>
+    </div>
+  </section>
+
+  <!-- ===================== REVEAL ===================== -->
+  <section class="view view--reveal" id="view-reveal" hidden>
+    <header class="topbar topbar--quiet">
+      <div class="pips" id="pips2" aria-hidden="true"></div>
+      <span class="running" id="running2">0</span>
+    </header>
+    <div class="scroll scroll--reveal">
+      <div class="verdict" id="verdict">
+        <span class="verdict__band" id="v-band">Close</span>
+        <span class="verdict__pts" id="v-pts">+650</span>
+        <span class="verdict__sub" id="v-sub">12% off</span>
+      </div>
+
+      <div class="compare">
+        <div class="compare__row">
+          <div class="compare__side">
+            <span class="compare__l">You said</span>
+            <span class="compare__v" id="v-guess">$30</span>
+          </div>
+          <div class="compare__side compare__side--r">
+            <span class="compare__l">Actual</span>
+            <span class="compare__v compare__v--real" id="v-actual">$34.12</span>
+          </div>
+        </div>
+        <div class="compare__bar"><span class="compare__fill" id="v-fill"></span></div>
+      </div>
+
+      <div class="recap" id="v-recap"></div>
+      <div class="streak" id="v-streak" hidden></div>
+    </div>
+
+    <div class="pad pad--slim">
+      <button class="btn btn--primary" id="btn-next">Next bottle</button>
+    </div>
+  </section>
+
+  <!-- ===================== SUMMARY ===================== -->
+  <section class="view view--sum" id="view-sum" hidden>
+    <div class="scroll">
+      <p class="sum__eyebrow" id="s-eyebrow">Round complete</p>
+      <h1 class="sum__score" id="s-score">0</h1>
+      <p class="sum__of" id="s-of">out of 10,000 points</p>
+
+      <div class="sum__grade" id="s-grade"></div>
+
+      <div class="stat-row stat-row--flat">
+        <div class="stat"><span class="stat__n" id="s-acc">&mdash;</span><span class="stat__l">Avg. off by</span></div>
+        <div class="stat"><span class="stat__n" id="s-best">&mdash;</span><span class="stat__l">Best call</span></div>
+        <div class="stat"><span class="stat__n" id="s-streak">0</span><span class="stat__l">Best streak</span></div>
+      </div>
+
+      <h2 class="section-h">Bottle by bottle</h2>
+      <ol class="tally" id="tally"></ol>
+    </div>
+
+    <div class="pad pad--slim pad--duo">
+      <button class="btn btn--ghost" id="btn-home">Home</button>
+      <button class="btn btn--primary" id="btn-again">Play again</button>
+    </div>
+  </section>
+
+  <!-- ===================== STATS ===================== -->
+  <section class="view view--stats" id="view-stats" hidden>
+    <header class="topbar"><span class="wordmark">Your form</span></header>
+    <div class="scroll">
+      <div class="stat-row">
+        <div class="stat"><span class="stat__n" id="x-rounds">0</span><span class="stat__l">Rounds</span></div>
+        <div class="stat"><span class="stat__n" id="x-best">&mdash;</span><span class="stat__l">Best round</span></div>
+        <div class="stat"><span class="stat__n" id="x-streak">0</span><span class="stat__l">Best streak</span></div>
+      </div>
+      <h2 class="section-h">Accuracy by category</h2>
+      <div class="bars" id="cat-bars"></div>
+      <button class="btn btn--ghost btn--wide" id="btn-reset">Reset all stats</button>
+    </div>
+  </section>
+
+  <!-- ===================== GUIDE ===================== -->
+  <section class="view view--guide" id="view-guide" hidden>
+    <header class="topbar"><span class="wordmark">How it works</span></header>
+    <div class="scroll">
+      <div class="card">
+        <h3>The round</h3>
+        <p>Ten bottles, drawn at random. You see the brand, the expression, the size and the proof &mdash; never the price.</p>
+      </div>
+      <div class="card">
+        <h3>The scoring</h3>
+        <p>Each bottle is worth up to <b>1,000 points</b>, scored on how far off you are as a percentage &mdash; so a $5 miss on a $20 bottle costs you the same as a $50 miss on a $200 one.</p>
+        <ul class="bands" id="band-list"></ul>
+      </div>
+      <div class="card">
+        <h3>Streaks</h3>
+        <p>Land within 15% and you start a streak. Every bottle after the first in a streak adds a <b>+50 bonus</b>, up to +250.</p>
+      </div>
+      <div class="card">
+        <h3>Where the prices come from</h3>
+        <p id="guide-source">Average retail price per item, straight from the distribution file.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB BAR ===================== -->
+  <nav class="tabs" id="tabs">
+    <button class="tab is-on" data-tab="home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4.5l8 6.7"/><path d="M6.2 10v9h11.6v-9"/></svg>
+      <span>Play</span>
+    </button>
+    <button class="tab" data-tab="stats">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M12 19V5M19 19v-5"/></svg>
+      <span>Form</span>
+    </button>
+    <button class="tab" data-tab="guide">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.8 9.6a2.3 2.3 0 1 1 2.9 2.6c-.5.2-.7.6-.7 1.1v.4"/><circle cx="12" cy="16.6" r=".85" fill="currentColor" stroke="none"/></svg>
+      <span>Guide</span>
+    </button>
+  </nav>
+
+</div>
+
+<script src="data/bottles.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
