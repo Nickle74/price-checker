@@ -519,8 +519,9 @@
     var from = Math.max(0, Math.min(at - 2, all.length - 5));
     var to = Math.min(all.length, from + 5);
 
+    // "of 66 brands in Cordials", not "of 66 cordials brands"
     $('v-ranks-h').textContent = b.b + ' is #' + (at + 1) + ' of ' + all.length +
-      ' ' + b.c.toLowerCase() + ' brands by volume';
+      ' brands in ' + b.c + ' by volume';
 
     list.innerHTML = '';
     for (var k = from; k < to; k++) {
