@@ -8,6 +8,7 @@
   'use strict';
 
   var BOTTLES = window.BOTTLES || [];
+  var RANKS = window.BRAND_RANKS || {};
   var ROUND_LEN = 10;
   var MAX_PER = 1000;
   var ZERO_AT = 0.60;      // 60% off or worse scores nothing
@@ -15,6 +16,10 @@
   var STREAK_STEP = 50;
   var STREAK_CAP = 250;
   var STORE_KEY = 'priceCheck.v1';
+  var DAILY_KEY = 'priceCheck.daily.v1';
+  var SHARE_URL = 'https://nickle74.github.io/price-checker/';
+  // 🟩 within 15%  🟨 within 30%  🟧 within 60%  ⬜ beyond
+  var MARKS = [[0.15, '🟩'], [0.30, '🟨'], [0.60, '🟧'], [Infinity, '⬜']];
 
   var BANDS = [
     { max: 0.03, label: 'Dead on',   tone: 'is-good', line: 'Within 3%. That is a shelf tag, not a guess.' },
@@ -38,10 +43,49 @@
   var pct = function (x) { return (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%'; };
   var buzz = function (ms) { if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} } };
 
+  // ---------- dates ----------
+  // Local dates, so the daily turns over at the player's own midnight.
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function dayKey(d) {
+    d = d || new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+  function yesterdayKey() {
+    var d = new Date();
+    d.setDate(d.getDate() - 1);
+    return dayKey(d);
+  }
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function prettyDay(key) {
+    var p = key.split('-');
+    return MONTHS[parseInt(p[1], 10) - 1] + ' ' + parseInt(p[2], 10);
+  }
+
+  // ---------- seeded randomness ----------
+  // FNV-1a over the date string, then mulberry32 — same day, same ten bottles,
+  // on every device, with no server involved.
+  function seedFrom(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
   // ---------- persisted stats ----------
   var stats = loadStats();
   function loadStats() {
-    var base = { rounds: 0, bestRound: 0, bestStreak: 0, totalPts: 0, sumPct: 0, nGuess: 0, cat: {} };
+    var base = { rounds: 0, bestRound: 0, bestStreak: 0, totalPts: 0, sumPct: 0, nGuess: 0, cat: {},
+                 dailyStreak: 0, dailyBest: 0, dailyPlayed: 0, dailyLast: '' };
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (!raw) return base;
@@ -53,6 +97,28 @@
   }
   function saveStats() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(stats)); } catch (e) {}
+  }
+
+  // ---------- today's saved attempt ----------
+  // Stored as bottle indexes plus guesses, so the whole summary rebuilds from it.
+  function loadDaily() {
+    try {
+      var raw = localStorage.getItem(DAILY_KEY);
+      if (!raw) return null;
+      var d = JSON.parse(raw);
+      if (!d || d.date !== dayKey() || !d.picks || !d.guesses) return null;
+      if (d.picks.length !== ROUND_LEN || d.guesses.length !== ROUND_LEN) return null;
+      // Regenerating the bank reshuffles the indexes, which would rebuild the
+      // round from the wrong bottles — drop the record rather than lie about it.
+      var fresh = dailyItems(d.date);
+      for (var i = 0; i < ROUND_LEN; i++) {
+        if (!BOTTLES[d.picks[i]] || BOTTLES[d.picks[i]] !== fresh[i]) return null;
+      }
+      return d;
+    } catch (e) { return null; }
+  }
+  function saveDaily(rec) {
+    try { localStorage.setItem(DAILY_KEY, JSON.stringify(rec)); } catch (e) {}
   }
 
   // ---------- state ----------
@@ -72,19 +138,22 @@
   // ============================================================
   // ROUND BUILDING
   // ============================================================
-  function pool() {
-    return catFilter === 'All' ? BOTTLES : BOTTLES.filter(function (b) { return b.c === catFilter; });
+  function pool(cat) {
+    cat = cat || catFilter;
+    return cat === 'All' ? BOTTLES : BOTTLES.filter(function (b) { return b.c === cat; });
   }
 
-  function pickRound() {
-    var src = pool().slice();
+  function pickRound(rng, cat) {
+    rng = rng || Math.random;
+    cat = cat || catFilter;
+    var src = pool(cat).slice();
     // Fisher–Yates
     for (var i = src.length - 1; i > 0; i--) {
-      var j = Math.floor(Math.random() * (i + 1));
+      var j = Math.floor(rng() * (i + 1));
       var t = src[i]; src[i] = src[j]; src[j] = t;
     }
     var out = [], seenBrand = {}, perCat = {};
-    var catCap = catFilter === 'All' ? 3 : ROUND_LEN;
+    var catCap = cat === 'All' ? 3 : ROUND_LEN;
 
     for (var pass = 0; pass < 3 && out.length < ROUND_LEN; pass++) {
       for (var k = 0; k < src.length && out.length < ROUND_LEN; k++) {
@@ -164,6 +233,25 @@
     $('st-best').textContent = stats.bestRound ? num(stats.bestRound) : '—';
     $('st-rounds').textContent = num(stats.rounds);
     $('st-acc').textContent = stats.nGuess ? pct(stats.sumPct / stats.nGuess) : '—';
+    renderDailyCard();
+  }
+
+  function renderDailyCard() {
+    var rec = loadDaily();
+    var card = $('btn-daily');
+    var score = $('daily-score');
+    card.classList.toggle('is-done', !!rec);
+    $('daily-title').textContent = rec ? 'Today’s bottles — played' : 'Today’s bottles';
+
+    if (rec) {
+      var total = scoreGuesses(rec.picks.map(function (i) { return BOTTLES[i]; }), rec.guesses).total;
+      $('daily-sub').textContent = prettyDay(rec.date) + ' · tap to see your grid';
+      score.hidden = false;
+      score.textContent = num(total);
+    } else {
+      $('daily-sub').textContent = prettyDay(dayKey()) + ' · the same ten for everyone';
+      score.hidden = true;
+    }
   }
 
   function renderChips() {
@@ -193,13 +281,52 @@
   // ============================================================
   // ROUND
   // ============================================================
-  function startRound() {
-    var items = pickRound();
+  function dailyItems(key) {
+    return pickRound(mulberry32(seedFrom('price-check|' + key)), 'All');
+  }
+
+  function startRound(mode) {
+    var items = mode === 'daily' ? dailyItems(dayKey()) : pickRound();
     if (items.length < ROUND_LEN) return;
-    game = { items: items, idx: 0, results: [], total: 0, streak: 0, bestStreak: 0 };
+    game = { mode: mode || 'free', items: items, idx: 0, results: [],
+             total: 0, streak: 0, bestStreak: 0 };
     typed = '';
     renderBottle();
     show('round');
+  }
+
+  // Replay a set of guesses through the same scoring the live round uses, so a
+  // stored daily and a freshly played one can never disagree.
+  function scoreGuesses(items, guesses) {
+    var out = { results: [], total: 0, streak: 0, bestStreak: 0 };
+    guesses.forEach(function (g, n) {
+      var b = items[n];
+      var err = Math.abs(g - b.p) / b.p;
+      var base = pointsFor(err), bonus = 0;
+      if (err <= STREAK_AT) {
+        out.streak += 1;
+        if (out.streak > 1) bonus = Math.min((out.streak - 1) * STREAK_STEP, STREAK_CAP);
+        if (out.streak > out.bestStreak) out.bestStreak = out.streak;
+      } else {
+        out.streak = 0;
+      }
+      out.total += base + bonus;
+      out.results.push({ bottle: b, guess: g, err: err, pts: base + bonus,
+                         base: base, bonus: bonus, band: bandFor(err) });
+    });
+    return out;
+  }
+
+  // Rebuild a finished daily from its stored guesses, so revisiting it shows
+  // the same summary instead of letting the round be played twice.
+  function replayDaily(rec) {
+    var items = rec.picks.map(function (i) { return BOTTLES[i]; });
+    var scored = scoreGuesses(items, rec.guesses);
+    game = { mode: 'daily', idx: ROUND_LEN - 1, items: items,
+             results: scored.results, total: scored.total,
+             streak: scored.streak, bestStreak: scored.bestStreak };
+    renderSummary();
+    show('sum');
   }
 
   function renderPips(done) {
@@ -363,6 +490,8 @@
     recap.appendChild(strong);
     recap.appendChild(document.createTextNode(' on ' + b.n + ', ' + b.s + '.'));
 
+    renderRanks(b);
+
     var st = $('v-streak');
     if (r.bonus > 0) {
       st.hidden = false;
@@ -372,6 +501,49 @@
     }
 
     $('btn-next').textContent = (game.idx + 1 >= ROUND_LEN) ? 'See your round' : 'Next bottle';
+  }
+
+  // Where this bottle's brand sits on volume in its category, with the two
+  // brands immediately above and below it.
+  function renderRanks(b) {
+    var box = $('v-ranks');
+    var list = $('v-ranks-list');
+    var all = RANKS[b.c];
+    if (!all || !all.length) { box.hidden = true; return; }
+
+    var at = -1;
+    for (var i = 0; i < all.length; i++) if (all[i][0] === b.b) { at = i; break; }
+    if (at === -1) { box.hidden = true; return; }
+
+    // two either side, sliding inwards at the ends so it is always five rows
+    var from = Math.max(0, Math.min(at - 2, all.length - 5));
+    var to = Math.min(all.length, from + 5);
+
+    $('v-ranks-h').textContent = b.b + ' is #' + (at + 1) + ' of ' + all.length +
+      ' ' + b.c.toLowerCase() + ' brands by volume';
+
+    list.innerHTML = '';
+    for (var k = from; k < to; k++) {
+      var row = all[k];
+      var li = document.createElement('li');
+      li.className = 'rrow' + (k === at ? ' is-me' : '');
+
+      var pos = document.createElement('span');
+      pos.className = 'rrow__pos';
+      pos.textContent = k + 1;
+
+      var nm = document.createElement('span');
+      nm.className = 'rrow__name';
+      nm.textContent = row[0];
+
+      var cs = document.createElement('span');
+      cs.className = 'rrow__cases';
+      cs.textContent = Math.round(row[1]).toLocaleString('en-US');
+
+      li.appendChild(pos); li.appendChild(nm); li.appendChild(cs);
+      list.appendChild(li);
+    }
+    box.hidden = false;
   }
 
   function nextStep() {
@@ -389,9 +561,67 @@
     stats.totalPts += game.total;
     if (game.total > stats.bestRound) stats.bestRound = game.total;
     if (game.bestStreak > stats.bestStreak) stats.bestStreak = game.bestStreak;
+
+    if (game.mode === 'daily') {
+      var today = dayKey();
+      if (stats.dailyLast !== today) {
+        stats.dailyStreak = (stats.dailyLast === yesterdayKey()) ? stats.dailyStreak + 1 : 1;
+        stats.dailyLast = today;
+        stats.dailyPlayed += 1;
+      }
+      if (game.total > stats.dailyBest) stats.dailyBest = game.total;
+      saveDaily({
+        date: today,
+        picks: game.items.map(function (b) { return b.i; }),
+        guesses: game.results.map(function (r) { return r.guess; })
+      });
+    }
+
     saveStats();
     renderSummary();
     show('sum');
+  }
+
+  function markFor(err) {
+    for (var i = 0; i < MARKS.length; i++) if (err <= MARKS[i][0]) return MARKS[i][1];
+    return MARKS[MARKS.length - 1][1];
+  }
+
+  function shareText() {
+    var grid = game.results.map(function (r) { return markFor(r.err); }).join('');
+    var avg = game.results.reduce(function (a, r) { return a + r.err; }, 0) / game.results.length;
+    return 'price check · ' + prettyDay(dayKey()) + '\n' +
+           num(game.total) + ' pts · ' + pct(avg) + ' off\n' +
+           grid + '\n' + SHARE_URL;
+  }
+
+  function shareResult() {
+    var text = shareText();
+    var done = function (msg) {
+      var btn = $('btn-share');
+      var was = btn.textContent;
+      btn.textContent = msg;
+      setTimeout(function () { btn.textContent = was; }, 1800);
+    };
+    if (navigator.share) {
+      navigator.share({ text: text }).catch(function () {});
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done('Copied'); },
+                                               function () { done('Copy failed'); });
+      return;
+    }
+    // last resort for older mobile browsers
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { done(document.execCommand('copy') ? 'Copied' : 'Copy failed'); }
+    catch (e) { done('Copy failed'); }
+    document.body.removeChild(ta);
   }
 
   function renderSummary() {
@@ -399,10 +629,18 @@
     var avgErr = rs.reduce(function (a, r) { return a + r.err; }, 0) / rs.length;
     var best = rs.reduce(function (a, r) { return r.err < a.err ? r : a; }, rs[0]);
 
+    var isDaily = game.mode === 'daily';
     $('s-score').textContent = num(game.total);
     $('s-of').textContent = 'out of ' + num(ROUND_LEN * MAX_PER) + ', before streak bonuses';
-    $('s-eyebrow').textContent = game.total >= stats.bestRound && game.total > 0
-      ? 'New personal best' : 'Round complete';
+    $('s-eyebrow').textContent = isDaily
+      ? 'Daily · ' + prettyDay(dayKey())
+      : (game.total >= stats.bestRound && game.total > 0 ? 'New personal best' : 'Round complete');
+
+    $('btn-share').hidden = !isDaily;
+    $('btn-again').hidden = isDaily;
+    var marks = $('s-marks');
+    marks.hidden = !isDaily;
+    if (isDaily) marks.textContent = rs.map(function (r) { return markFor(r.err); }).join('');
 
     $('s-acc').textContent = pct(avgErr);
     $('s-best').textContent = pct(best.err);
@@ -457,6 +695,16 @@
     $('x-rounds').textContent = num(stats.rounds);
     $('x-best').textContent = stats.bestRound ? num(stats.bestRound) : '—';
     $('x-streak').textContent = num(stats.bestStreak);
+
+    // a streak only counts while it is current — yesterday or today
+    var live = (stats.dailyLast === dayKey() || stats.dailyLast === yesterdayKey())
+      ? stats.dailyStreak : 0;
+    $('x-dstreak').textContent = num(live);
+    $('x-dplayed').textContent = num(stats.dailyPlayed);
+    var rec = loadDaily();
+    $('x-dtoday').textContent = rec
+      ? num(scoreGuesses(rec.picks.map(function (i) { return BOTTLES[i]; }), rec.guesses).total)
+      : '—';
 
     var wrap = $('cat-bars');
     wrap.innerHTML = '';
@@ -538,12 +786,17 @@
     renderHome();
     renderGuide();
 
-    $('btn-play').addEventListener('click', startRound);
+    $('btn-play').addEventListener('click', function () { startRound('free'); });
+    $('btn-again').addEventListener('click', function () { startRound('free'); });
+    $('btn-share').addEventListener('click', shareResult);
+    $('btn-daily').addEventListener('click', function () {
+      var rec = loadDaily();
+      if (rec) replayDaily(rec); else startRound('daily');
+    });
     $('btn-lock').addEventListener('click', lockIn);
     $('btn-next').addEventListener('click', nextStep);
     $('btn-quit').addEventListener('click', quitRound);
     $('btn-home').addEventListener('click', quitRound);
-    $('btn-again').addEventListener('click', startRound);
     $('btn-guide-top').addEventListener('click', function () { setTab('guide'); });
 
     $('btn-reset').addEventListener('click', function () {

@@ -44,6 +44,39 @@ ABBR = {
 KEEP_UPPER = {"XO","VS","VSOP","XXO","XXL","NA","RTD","IPA","USA","DIY","VMC","LBV"}
 SIZES_OK = {"750ML","1.75L","1L","375ML","700ML","355ML","500ML"}
 
+SMALL = {"Of", "The", "And", "De", "Los", "Las", "La", "El", "Du", "Des", "Von"}
+
+
+def one_word(w):
+    """Expand one trade abbreviation and give it sane casing."""
+    if w in KEEP_UPPER:
+        return w
+    base = ABBR.get(w.strip(".,"))
+    if base:
+        return base
+    # initialisms and ampersand brands keep their own casing: W.L., E&J, G-A
+    if "." in w or "&" in w:
+        return w
+    if re.fullmatch(r"\d+YR?", w):
+        return re.sub(r"YR?$", "", w) + " Year"
+    # "100P" is a proof restatement and goes; a bare number is part of the name
+    # (Don Julio 1942, 1800 Tequila, Courvoisier 1738) and must stay, or the
+    # cards collapse into each other.
+    if re.fullmatch(r"\d+P", w):
+        return ""
+    if "'" in w:
+        head, _, tail = w.partition("'")
+        return head.capitalize() + "'" + tail.lower()
+    if "-" in w:
+        return "-".join(one_word(p) or p.capitalize() for p in w.split("-"))
+    return w.capitalize()
+
+
+def lower_small(words):
+    """'Tears Of Llorona' -> 'Tears of Llorona', but never the first word."""
+    return [w if i == 0 or w not in SMALL else w.lower() for i, w in enumerate(words)]
+
+
 def clean_item(item, brand):
     s = item.upper().strip()
     # cut at the container word — everything after is packaging/proof/size
@@ -54,40 +87,16 @@ def clean_item(item, brand):
     s = re.sub(r"\s*(<|>)?\d+(\.\d+)?(-\d+)?\+?\s*PROOF.*$", "", s)
     s = re.sub(r"\s*\d+(\.\d+)?(ML|L)\s*$", "", s)
     s = re.sub(r"\s*\d+\s*PK\s*$", "", s)
-    def one(w):
-        if w in KEEP_UPPER:
-            return w
-        base = ABBR.get(w.strip(".,"))
-        if base:
-            return base
-        # initialisms and ampersand brands keep their own casing: W.L., E&J, G-A
-        if "." in w or "&" in w:
-            return w
-        if re.fullmatch(r"\d+YR?", w):
-            return re.sub(r"YR?$", "", w) + " Year"
-        if re.fullmatch(r"\d+", w) or re.fullmatch(r"\d+P", w):
-            return ""
-        if "'" in w:
-            head, _, tail = w.partition("'")
-            return head.capitalize() + "'" + tail.lower()
-        if "-" in w:
-            return "-".join(one(p) or p.capitalize() for p in w.split("-"))
-        return w.capitalize()
-
-    words = [x for x in (one(w) for w in s.split()) if x]
+    words = lower_small([x for x in (one_word(w) for w in s.split()) if x])
     name = " ".join(words)
     name = re.sub(r"\s{2,}", " ", name).strip(" -&")
     return name or brand.title()
 
 def title_brand(b):
-    out = []
-    for w in b.upper().split():
-        if w in KEEP_UPPER: out.append(w)
-        elif "'" in w:
-            h,_,t = w.partition("'"); out.append(h.capitalize()+"'"+t.lower())
-        elif "-" in w: out.append("-".join(p.capitalize() for p in w.split("-")))
-        else: out.append(w.capitalize())
-    return " ".join(out)
+    """Brands go through the same expansion as item names, so 'JIM BEAM BRBN'
+    and 'JACOB'S PARDON WSKY' read properly in the volume ranking."""
+    words = lower_small([x for x in (one_word(w) for w in b.upper().split()) if x])
+    return " ".join(words).strip(" -&") or b.title()
 
 def proof_of(item):
     m = re.search(r"(<|>)?\s*(\d+)(?:-(\d+))?(\+)?\s*PROOF", item.upper())
@@ -109,7 +118,7 @@ TIER_LABEL = {
 }
 
 rows = list(csv.DictReader(open(SRC, encoding="utf-8-sig")))
-bank, skipped = [], collections.Counter()
+kept_rows, skipped = [], collections.Counter()
 for r in rows:
     try:
         price = float(r["avg_retail_price"]); accts = int(r["num_accounts"])
@@ -118,17 +127,53 @@ for r in rows:
     if r["size"] not in SIZES_OK: skipped["size"] += 1; continue
     if accts < 10:                skipped["thin distribution"] += 1; continue
     if not (4.0 <= price <= 400): skipped["price outlier"] += 1; continue
-    bank.append({
-        "i": len(bank),
+    kept_rows.append({
         "c": CAT_LABEL.get(r["category"], r["category"].title()),
         "b": title_brand(r["brand"]),
         "n": clean_item(r["item"], r["brand"]),
-        "s": r["size"].replace("ML", "mL").replace("1.75L", "1.75L"),
+        "s": r["size"].replace("ML", "mL"),
         "p": round(price, 2),
         "t": TIER_LABEL.get(r["price_tier"], r["price_tier"].title()),
         "f": proof_of(r["item"]),
         "a": accts,
     })
+
+# ---- one card per product -------------------------------------------------
+# The file carries the same product on several rows (different UPCs or
+# suppliers) at different averages -- DON JULIO 1942 ANEJO 750ML appears three
+# times between $159.95 and $196.93. Two identical-looking cards with different
+# right answers is an unwinnable round, so keep the most widely stocked row:
+# that is the price the most shelves actually show.
+by_card = collections.OrderedDict()
+for row in kept_rows:
+    k = (row["n"], row["s"])
+    cur = by_card.get(k)
+    if cur is None or row["a"] > cur["a"]:
+        by_card[k] = row
+skipped["duplicate product"] = len(kept_rows) - len(by_card)
+
+bank = []
+for row in by_card.values():
+    row["i"] = len(bank)
+    bank.append(row)
+
+# ---- brand volume ranking, by category -------------------------------------
+# Built from EVERY row in the file, not just the playable ones, so the ranking
+# reflects real depletions rather than whatever survived the filters.
+vol = collections.defaultdict(float)
+for r in rows:
+    try:
+        cases = float(r["nine_l_cases"])
+    except ValueError:
+        continue
+    cat = CAT_LABEL.get(r["category"], r["category"].title())
+    vol[(cat, title_brand(r["brand"]))] += cases
+
+ranks = collections.defaultdict(list)
+for (cat, brand), cases in vol.items():
+    ranks[cat].append([brand, round(cases, 1)])
+for cat in ranks:
+    ranks[cat].sort(key=lambda x: -x[1])
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 with open(OUT, "w", encoding="utf-8") as fh:
@@ -136,6 +181,10 @@ with open(OUT, "w", encoding="utf-8") as fh:
     fh.write("// i=index c=category b=brand n=name s=size p=avg retail price t=tier f=proof a=accounts\n")
     fh.write("window.BOTTLES = ")
     json.dump(bank, fh, ensure_ascii=False, separators=(",", ":"))
+    fh.write(";\n")
+    fh.write("// Brands per category, ranked by total 9L cases: [brand, cases]\n")
+    fh.write("window.BRAND_RANKS = ")
+    json.dump(ranks, fh, ensure_ascii=False, separators=(",", ":"))
     fh.write(";\n")
 
 print("kept:", len(bank), "| skipped:", dict(skipped))

@@ -25,8 +25,25 @@ headlines, thin-line tab bar.
 
 - **Streaks**: land within 15% and you start a streak. Every bottle after the
   first in a streak adds +50, capped at +250. A perfect round is 11,750.
-- **Form** tracks rounds, best round, best streak and accuracy per category,
-  in `localStorage` on the device. Nothing leaves the phone.
+- **After each guess** you get the answer and where that brand sits on volume
+  in its category — the two brands above it and the two below, by 9-litre
+  cases. The ranking is built from every row in the file, not just the playable
+  ones, so it reflects real depletions.
+- **The daily** draws one fixed set of ten from the date itself, so everyone
+  opens the app to the same round. One attempt, then share the grid:
+
+  ```
+  price check · Nov 20
+  6,312 pts · 21% off
+  🟩🟩🟩🟧⬜🟩🟨🟩🟧🟩
+  https://nickle74.github.io/price-checker/
+  ```
+
+  🟩 within 15%, 🟨 within 30%, 🟧 within 60%, ⬜ beyond. It resets at local
+  midnight, and the round is derived from the date with a seeded shuffle, so no
+  server is involved.
+- **Form** tracks rounds, best round, best streak, daily streak and accuracy per
+  category, in `localStorage` on the device. Nothing leaves the phone.
 
 ## Layout
 
@@ -56,18 +73,26 @@ python tools/build_bank.py
 
 Then bump `CACHE` in `docs/sw.js` so installed copies pick up the new data.
 
-**What the builder keeps.** Of 1,320 rows in the file, 1,130 become playable:
+**What the builder keeps.** Of 1,320 rows in the file, 995 become playable:
 
 | Dropped | Rows | Why |
 |---|---|---|
-| Odd sizes | 79 | 50 mL, 100 mL, 200 mL, "REM SIZE" etc. — unguessable |
+| Duplicate products | 135 | the same product on several rows at different averages |
 | Thin distribution | 95 | stocked in fewer than 10 accounts, so the average is a one-store fluke |
+| Odd sizes | 79 | 50 mL, 100 mL, 200 mL, "REM SIZE" etc. — unguessable |
 | Price outliers | 16 | under $4 or over $400, including a $1,305 Hennessy 700 mL |
 
-It also expands the trade abbreviations in `item` into something readable —
-`MACALLAN 12YR DBL CASK SCT WSK GLASS 86 PROOF 750ML` becomes
+The duplicates matter most. `DON JULIO 1942 ANEJO 750ML` appears three times
+between $159.95 and $196.93 on different UPCs, and two identical-looking cards
+with different right answers is an unwinnable round. The builder keeps the most
+widely stocked row of each product — the price the most shelves actually show.
+
+It also expands the trade abbreviations in `item` and `brand` into something
+readable — `MACALLAN 12YR DBL CASK SCT WSK GLASS 86 PROOF 750ML` becomes
 *Macallan 12 Year Double Cask Scotch Whiskey* — and strips the packaging, proof
-and size out of the name, since those are shown as their own fields.
+and size out of the name, since those are shown as their own fields. Bare
+numbers are kept deliberately: *Don Julio 1942*, *1800 Silver* and
+*Rémy Martin 1738* lose their identity without them.
 
 ## Running it
 

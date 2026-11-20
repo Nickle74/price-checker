@@ -1,6 +1,6 @@
 /* price check — offline shell.
    Bump CACHE whenever you regenerate bottles.js or edit the app. */
-var CACHE = 'price-check-v1';
+var CACHE = 'price-check-v2';
 var ASSETS = [
   './',
   './index.html',

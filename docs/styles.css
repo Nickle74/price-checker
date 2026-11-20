@@ -157,6 +157,35 @@ button{font:inherit;color:inherit;margin:0}
 }
 .hero__go svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 
+/* ---------- daily card ---------- */
+.daily{
+  display:flex;align-items:center;gap:13px;
+  width:100%;text-align:left;
+  margin-top:10px;padding:15px 16px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .16s cubic-bezier(.2,.8,.3,1), border-color .16s ease;
+}
+.daily:active{transform:scale(.985)}
+.daily__mark{
+  flex:0 0 auto;width:34px;height:34px;border-radius:var(--r-pill);
+  background:linear-gradient(135deg,var(--g1),var(--g2));
+  display:grid;place-items:center;
+}
+.daily__mark svg{width:16px;height:16px;fill:none;stroke:var(--ink);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.daily__body{display:flex;flex-direction:column;gap:1px;flex:1 1 auto;min-width:0}
+.daily__title{font-size:15px;font-weight:600;letter-spacing:-.02em}
+.daily__sub{font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.daily__score{
+  flex:0 0 auto;font-size:17px;font-weight:600;
+  font-variant-numeric:tabular-nums;letter-spacing:-.025em;
+}
+.daily.is-done .daily__mark{background:var(--good)}
+.daily.is-done .daily__mark svg{stroke:#fff}
+
 /* ---------- stat row ---------- */
 .stat-row{
   display:grid;grid-template-columns:repeat(3,1fr);
@@ -328,7 +357,9 @@ button{font:inherit;color:inherit;margin:0}
 
 /* ---------- reveal ---------- */
 .topbar--quiet{padding-top:18px}
-.scroll--reveal{display:flex;flex-direction:column;gap:18px;padding-top:10px;justify-content:center}
+/* flex-start, not center: with the rank card the content can exceed a short
+   phone, and centred overflow clips the top beyond reach of the scroll */
+.scroll--reveal{display:flex;flex-direction:column;gap:16px;padding-top:12px;justify-content:flex-start}
 
 .verdict{
   display:flex;flex-direction:column;align-items:center;gap:4px;
@@ -370,6 +401,55 @@ button{font:inherit;color:inherit;margin:0}
   animation:rise .4s .12s cubic-bezier(.2,.8,.3,1) both;
 }
 .recap b{color:var(--ink);font-weight:600}
+
+/* ---------- brand volume rank ---------- */
+.ranks{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--r-card);
+  padding:16px 18px 14px;
+  animation:rise .4s .16s cubic-bezier(.2,.8,.3,1) both;
+}
+.ranks[hidden]{display:none}
+.ranks__h{
+  margin:0 0 10px;
+  font-size:11px;font-weight:600;letter-spacing:.03em;
+  text-transform:uppercase;color:var(--ink-3);
+  line-height:1.4;
+}
+.ranks__list{list-style:none;margin:0;padding:0}
+.rrow{
+  display:grid;
+  grid-template-columns:26px 1fr auto;
+  align-items:center;gap:10px;
+  padding:6px 8px;
+  margin:0 -8px;
+  border-radius:10px;
+  font-size:13.5px;
+  color:var(--ink-2);
+}
+.rrow__pos{font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-3);text-align:right}
+.rrow__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rrow__cases{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--ink-3)}
+.rrow.is-me{background:var(--ink);color:#fff;font-weight:600}
+.rrow.is-me .rrow__pos,
+.rrow.is-me .rrow__cases{color:rgba(255,255,255,.65)}
+.ranks__list::after{
+  content:"9-litre cases";
+  display:block;text-align:right;
+  margin-top:8px;
+  font-size:10.5px;letter-spacing:.03em;color:var(--ink-3);
+}
+
+/* ---------- share grid ---------- */
+.marks{
+  margin-top:14px;
+  font-size:22px;
+  letter-spacing:.14em;
+  line-height:1;
+  word-break:break-all;
+}
+.marks[hidden]{display:none}
 .streak{
   align-self:center;
   font-size:13px;font-weight:600;

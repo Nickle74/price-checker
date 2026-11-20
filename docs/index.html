@@ -43,6 +43,17 @@
         </span>
       </button>
 
+      <button class="daily" id="btn-daily">
+        <span class="daily__mark" id="daily-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 12h13M12.5 6l6 6-6 6"/></svg>
+        </span>
+        <span class="daily__body">
+          <span class="daily__title" id="daily-title">Today&rsquo;s bottles</span>
+          <span class="daily__sub" id="daily-sub">The same ten for everyone</span>
+        </span>
+        <span class="daily__score" id="daily-score" hidden></span>
+      </button>
+
       <div class="stat-row">
         <div class="stat"><span class="stat__n" id="st-best">&mdash;</span><span class="stat__l">Best round</span></div>
         <div class="stat"><span class="stat__n" id="st-rounds">0</span><span class="stat__l">Rounds</span></div>
@@ -117,6 +128,11 @@
 
       <div class="recap" id="v-recap"></div>
       <div class="streak" id="v-streak" hidden></div>
+
+      <section class="ranks" id="v-ranks" hidden>
+        <h3 class="ranks__h" id="v-ranks-h">Volume rank</h3>
+        <ol class="ranks__list" id="v-ranks-list"></ol>
+      </section>
     </div>
 
     <div class="pad pad--slim">
@@ -132,6 +148,7 @@
       <p class="sum__of" id="s-of">out of 10,000 points</p>
 
       <div class="sum__grade" id="s-grade"></div>
+      <div class="marks" id="s-marks" hidden></div>
 
       <div class="stat-row stat-row--flat">
         <div class="stat"><span class="stat__n" id="s-acc">&mdash;</span><span class="stat__l">Avg. off by</span></div>
@@ -146,6 +163,7 @@
     <div class="pad pad--slim pad--duo">
       <button class="btn btn--ghost" id="btn-home">Home</button>
       <button class="btn btn--primary" id="btn-again">Play again</button>
+      <button class="btn btn--primary" id="btn-share" hidden>Share result</button>
     </div>
   </section>
 
@@ -158,6 +176,12 @@
         <div class="stat"><span class="stat__n" id="x-best">&mdash;</span><span class="stat__l">Best round</span></div>
         <div class="stat"><span class="stat__n" id="x-streak">0</span><span class="stat__l">Best streak</span></div>
       </div>
+      <div class="stat-row">
+        <div class="stat"><span class="stat__n" id="x-dstreak">0</span><span class="stat__l">Daily streak</span></div>
+        <div class="stat"><span class="stat__n" id="x-dplayed">0</span><span class="stat__l">Dailies</span></div>
+        <div class="stat"><span class="stat__n" id="x-dtoday">&mdash;</span><span class="stat__l">Today</span></div>
+      </div>
+
       <h2 class="section-h">Accuracy by category</h2>
       <div class="bars" id="cat-bars"></div>
       <button class="btn btn--ghost btn--wide" id="btn-reset">Reset all stats</button>
@@ -176,6 +200,12 @@
         <h3>The scoring</h3>
         <p>Each bottle is worth up to <b>1,000 points</b>, scored on how far off you are as a percentage &mdash; so a $5 miss on a $20 bottle costs you the same as a $50 miss on a $200 one.</p>
         <ul class="bands" id="band-list"></ul>
+      </div>
+      <div class="card">
+        <h3>The daily</h3>
+        <p>Every day draws one fixed set of ten bottles from the date itself, so
+        everyone opens the app to the <b>same round</b>. One attempt, then share
+        the grid and compare. It resets at midnight, your time.</p>
       </div>
       <div class="card">
         <h3>Streaks</h3>
