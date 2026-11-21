@@ -140,7 +140,36 @@ class BarcodeLookup(Provider):
         return True, prods[0].get("images", []) or []
 
 
-PROVIDERS = {p.name: p for p in [UpcItemDb(), BarcodeLookup()]}
+class OpenFoodFacts(Provider):
+    """Open Food Facts. Free, no key, no subscription, and the images are
+    contributor photographs under CC-BY-SA rather than a retailer's
+    copyrighted studio shots -- the best licensing position of anything here,
+    as long as the attribution in the README stays.
+
+    They ask for an identifying User-Agent and reasonable pacing; 100/min is
+    their published guidance for product queries.
+    """
+    name = "openfoodfacts"
+    cost = 0.0
+    pause = 2.5   # they throttle well below their published 100/min
+    URL = ("https://world.openfoodfacts.org/api/v2/product/%s.json"
+           "?fields=product_name,image_front_url,image_url")
+
+    def images(self, upc):
+        try:
+            d = json.loads(fetch(self.URL % upc))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False, []
+            raise
+        if d.get("status") == 0 or not d.get("product"):
+            return False, []
+        p = d["product"]
+        urls = [u for u in (p.get("image_front_url"), p.get("image_url")) if u]
+        return True, urls
+
+
+PROVIDERS = {p.name: p for p in [UpcItemDb(), BarcodeLookup(), OpenFoodFacts()]}
 
 
 def load_bank():
@@ -157,7 +186,11 @@ def load_state():
             s = json.load(fh)
     except Exception:
         s = {}
-    s.setdefault("tried", {})     # upc -> "ok" | "none" | "error"
+    # tried is per provider: one catalogue not holding a product says nothing
+    # about another, and a shared list would make the second skip it
+    s.setdefault("tried", {})     # provider -> {upc: "ok" | "none" | "error"}
+    if s["tried"] and all(not isinstance(v, dict) for v in s["tried"].values()):
+        s["tried"] = {"upcitemdb": s["tried"]}      # migrate the flat old shape
     return s
 
 
@@ -253,20 +286,24 @@ def probe(bottles, prov, sample):
     random.seed(11)                       # same sample across providers
     pick = random.sample(usable, min(sample, len(usable)))
 
-    found = withimg = errors = 0
+    found = withimg = errors = tested = 0
     print("  sampling %d of %d bottles via %s\n" % (len(pick), len(usable), prov.name))
     for b in pick:
         try:
             ok, imgs = prov.images(b["u"])
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                print("  rate limited after %d lookups -- partial sample" % (found + errors))
+                # stop, and score only what was actually asked -- dividing by the
+                # full sample here would understate coverage and wrongly condemn
+                # a provider that was merely throttled
+                print("  rate limited after %d lookups -- scoring those only" % tested)
                 break
             errors += 1
             continue
         except Exception:
             errors += 1
             continue
+        tested += 1
         if ok:
             found += 1
         if imgs:
@@ -275,8 +312,9 @@ def probe(bottles, prov, sample):
                                    b["n"][:44], b["u"]))
         time.sleep(prov.pause)
 
-    n = found + errors
-    done = max(1, len(pick) - errors)
+    done = max(1, tested)
+    if tested < len(pick):
+        print("\n  (sample cut short at %d of %d)" % (tested, len(pick)))
     print("\n  in catalogue : %d of %d" % (found, done))
     print("  with a photo : %d of %d  (%.0f%%)" % (withimg, done, 100.0 * withimg / done))
     if errors:
@@ -300,8 +338,9 @@ def from_api(bottles, state, limit, prov):
     weight = {}
     for b in bottles:
         weight[b["b"]] = weight.get(b["b"], 0) + 1
+    seen = state["tried"].setdefault(prov.name, {})
     todo = [b for b in bottles
-            if b.get("u") and not have(b["u"]) and b["u"] not in state["tried"]]
+            if b.get("u") and not have(b["u"]) and b["u"] not in seen]
     todo.sort(key=lambda b: (-weight[b["b"]], -b["a"]))
 
     if not todo:
@@ -317,7 +356,7 @@ def from_api(bottles, state, limit, prov):
             if e.code == 429:
                 print("  rate limited after %d -- stopping, run again tomorrow" % (n - 1))
                 break
-            state["tried"][upc] = "error"
+            seen[upc] = "error"
             print("  !! %-40s HTTP %s" % (b["n"][:40], e.code))
             time.sleep(PAUSE)
             continue
@@ -337,7 +376,7 @@ def from_api(bottles, state, limit, prov):
             except Exception:
                 continue
 
-        state["tried"][upc] = "ok" if saved else "none"
+        seen[upc] = "ok" if saved else "none"
         if not saved:
             print("  -- %-40s %s  no usable image" % (b["n"][:40], upc))
         save_state(state)
