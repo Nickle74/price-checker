@@ -230,6 +230,7 @@
 
   // ---------- state ----------
   var catFilter = 'All';
+  var sizeFilter = 'All';
   var game = null;
   var typed = '';
   var currentTab = 'home';
@@ -242,18 +243,35 @@
   })();
   var CATS = Object.keys(catCounts).sort(function (a, b) { return catCounts[b] - catCounts[a]; });
 
+  // ---------- sizes ----------
+  // Ordered biggest-selling format first rather than alphabetically, so the
+  // row reads 750mL, 1.75L, ... which is how anyone in the trade thinks about
+  // it. 1L is absent because it is held out of the bank entirely -- see
+  // EXCLUDE_SIZES in tools/build_bank.py.
+  var sizeCounts = (function () {
+    var m = {};
+    BOTTLES.forEach(function (b) { m[b.s] = (m[b.s] || 0) + 1; });
+    return m;
+  })();
+  var SIZES = Object.keys(sizeCounts).sort(function (a, b) { return sizeCounts[b] - sizeCounts[a]; });
+
   // ============================================================
   // ROUND BUILDING
   // ============================================================
-  function pool(cat) {
+  function pool(cat, size) {
     cat = cat || catFilter;
-    return cat === 'All' ? BOTTLES : BOTTLES.filter(function (b) { return b.c === cat; });
+    size = size || sizeFilter;
+    if (cat === 'All' && size === 'All') return BOTTLES;
+    return BOTTLES.filter(function (b) {
+      return (cat === 'All' || b.c === cat) && (size === 'All' || b.s === size);
+    });
   }
 
-  function pickRound(rng, cat) {
+  function pickRound(rng, cat, size) {
     rng = rng || Math.random;
     cat = cat || catFilter;
-    var src = pool(cat).slice();
+    size = size || sizeFilter;
+    var src = pool(cat, size).slice();
     // Fisher–Yates
     for (var i = src.length - 1; i > 0; i--) {
       var j = Math.floor(rng() * (i + 1));
@@ -333,7 +351,8 @@
   // ============================================================
   function renderHome() {
     var n = pool().length;
-    $('hero-eyebrow').textContent = ROUND_LEN + ' bottles · ' + catFilter;
+    $('hero-eyebrow').textContent = ROUND_LEN + ' bottles · ' + catFilter +
+      (sizeFilter === 'All' ? '' : ' · ' + sizeFilter);
     $('hero-meta').textContent = num(n) + ' bottle' + (n === 1 ? '' : 's') + ' in the book';
     $('btn-play').disabled = n < ROUND_LEN;
 
@@ -361,35 +380,50 @@
     }
   }
 
-  function renderChips() {
-    var wrap = $('chips');
+  // One builder for both rows. The count on each chip is the number of
+  // bottles you would actually be playing -- it honours the OTHER filter, so
+  // picking Tequila and then looking at the size row tells you how many
+  // tequilas come in each format, not how many bottles exist in that size.
+  // A combination that cannot fill a round is disabled rather than hidden,
+  // so the row does not reshuffle under the thumb.
+  function buildChips(wrapId, values, current, countFor, onPick) {
+    var wrap = $(wrapId);
     wrap.innerHTML = '';
-    ['All'].concat(CATS).forEach(function (c) {
-      var count = c === 'All' ? BOTTLES.length : catCounts[c];
+    ['All'].concat(values).forEach(function (v) {
+      var count = countFor(v);
       var b = document.createElement('button');
-      b.className = 'chip' + (c === catFilter ? ' is-on' : '');
-      b.innerHTML = '';
-      b.appendChild(document.createTextNode(c));
+      b.className = 'chip' + (v === current ? ' is-on' : '');
+      b.appendChild(document.createTextNode(v));
       var s = document.createElement('span');
       s.className = 'chip__n';
       s.textContent = num(count);
       b.appendChild(s);
-      b.disabled = count < ROUND_LEN;
-      if (count < ROUND_LEN) b.style.opacity = '.4';
-      b.addEventListener('click', function () {
-        catFilter = c;
-        renderChips();
-        renderHome();
-      });
+      b.disabled = count < ROUND_LEN && v !== current;
+      if (b.disabled) b.style.opacity = '.4';
+      b.addEventListener('click', function () { onPick(v); });
       wrap.appendChild(b);
     });
+  }
+
+  function renderChips() {
+    buildChips('chips', CATS, catFilter,
+      function (c) { return pool(c, sizeFilter).length; },
+      function (c) { catFilter = c; renderChips(); renderSizeChips(); renderHome(); });
+  }
+
+  function renderSizeChips() {
+    buildChips('size-chips', SIZES, sizeFilter,
+      function (z) { return pool(catFilter, z).length; },
+      function (z) { sizeFilter = z; renderChips(); renderSizeChips(); renderHome(); });
   }
 
   // ============================================================
   // ROUND
   // ============================================================
   function dailyItems(key) {
-    return pickRound(mulberry32(seedFrom('price-check|' + key)), 'All');
+    // 'All' on both axes deliberately: the daily is the same ten bottles for
+    // everyone, so a player's own category or size choice must not touch it.
+    return pickRound(mulberry32(seedFrom('price-check|' + key)), 'All', 'All');
   }
 
   function startRound(mode) {
@@ -900,6 +934,7 @@
 
     buildKeys();
     renderChips();
+    renderSizeChips();
     renderHome();
     renderGuide();
 

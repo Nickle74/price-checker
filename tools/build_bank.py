@@ -47,10 +47,33 @@ ABBR = {
  "FSHN":"Fashioned","BRTSH":"British","DMNT":"Diamante","STY":"Style",
  "WHP":"Whipped","YLW":"Yellow","CSK":"Cask","STR":"Strength","SNTR":"Sinatra",
  "SLCT":"Select","MSTR":"Master","ELDRBRRY":"Elderberry","AUTH":"Authentic",
+ # fifth pass -- found by listing every token in the bank and reading the
+ # consonant-heavy ones instead of waiting for each to surface. Mostly RTD
+ # cans, where the POS truncation is worst: the player was shown "Cutwater
+ # Strawbry Margarita" and the matcher had no "strawberry" token to work with.
+ "SLVR":"Silver","CARBN":"Carbon","NEUTRL":"Neutral","CLDA":"Colada",
+ "MARG":"Margarita","RTA":"Rita","CNTNRO":"Centenario","RSRVA":"Reserva",
+ "ARMGNC":"Armagnac","TAYLR":"Taylor","MIDSMR":"Midsummer",
+ "TRANSFN":"Transfusion","VDKRITA":"Vodkarita","LMNADE":"Lemonade",
+ "SMASHD":"Smashed","WASHINGTN":"Washington","STRAWBRY":"Strawberry",
+ "BLACKBRY":"Blackberry","WTRMELON":"Watermelon","GRPFRUIT":"Grapefruit",
+ "GNGER":"Ginger","PNAPL":"Pineapple","ELDRFLW":"Elderflower",
+ "EDCN":"Edicion","NGRA":"Negra",
+ "TROP":"Tropical",
 }
 
-KEEP_UPPER = {"XO","VS","VSOP","XXO","XXL","NA","RTD","IPA","USA","DIY","VMC","LBV","TLC"}
+KEEP_UPPER = {"XO","VS","VSOP","XXO","XXL","NA","RTD","IPA","USA","DIY","VMC","LBV","TLC","DTG"}
+# PHRASES expand across two words, before tokenising. "IS" cannot go in ABBR
+# as Island -- it is an ordinary word everywhere else -- but "LG IS" is not.
+PHRASES = {"LG IS": "LONG ISLAND"}
 SIZES_OK = {"750ML","1.75L","1L","375ML","700ML","355ML","500ML"}
+
+# Sizes held out of the game for now. 1L went at Nick's request: in a
+# photograph it is indistinguishable from the 750mL of the same product,
+# so the card asks the player to price a bottle they cannot tell apart
+# from another one in the book. Empty this set to bring them back --
+# nothing else anywhere depends on it.
+EXCLUDE_SIZES = {"1L"}
 
 # A brand has to move at least this many 9-litre cases across the whole file to
 # appear at all. Below it you are asking someone to price something that barely
@@ -79,6 +102,10 @@ def one_word(w):
         return ""
     # hyphens first: CHI-CHI'S must split into CHI and CHI'S, or the apostrophe
     # rule swallows the whole word and gives "Chi-chi's"
+    # slashes split like hyphens: "BLANCO/SLVR" fell through to
+    # capitalize() and came out "Blanco/slvr"
+    if "/" in w:
+        return "/".join(one_word(q) or q.capitalize() for q in w.split("/"))
     if "-" in w:
         return "-".join(one_word(p) or p.capitalize() for p in w.split("-"))
     if "'" in w:
@@ -94,6 +121,8 @@ def lower_small(words):
 
 def clean_item(item, brand):
     s = item.upper().strip()
+    for frm, to in PHRASES.items():
+        s = re.sub(r"\b%s\b" % frm, to, s)
     # cut at the container word — everything after is packaging/proof/size
     m = re.search(r"\s+(?:%s)\b" % "|".join(CONTAINERS), s)
     if m:
@@ -181,6 +210,7 @@ for r in rows:
     except ValueError:
         skipped["bad number"] += 1; continue
     if r["size"] not in SIZES_OK: skipped["size"] += 1; continue
+    if r["size"] in EXCLUDE_SIZES: skipped["size held out"] += 1; continue
     if accts < 10:                skipped["thin distribution"] += 1; continue
     if not (4.0 <= price <= 400): skipped["price outlier"] += 1; continue
     if title_brand(r["brand"]) in SMALL_BRANDS:

@@ -66,6 +66,47 @@ EXCLUSIVE = [
     {"vs", "vsop", "xo", "xxo"},
 ]
 
+# Words that name a specific expression or flavour rather than describe the
+# category. If the shop's title carries one and our name does not, it is a
+# different bottle. The EXCLUSIVE one-sided rule below only fires inside a
+# group we already share a word with, so a qualifier we had NO counterpart for
+# skipped the check completely -- Captain Morgan Spiced -> Captain Morgan
+# SILVER Spiced, Rum Chata Cream -> COCONUT Cream, Macallan 12 -> 12 DOUBLE
+# CASK, Nolet's -> The RESERVE ($35 bottle, $700 bottle). All four scored
+# above 0.85 and all four were a different bottle.
+#
+# Deliberately NOT here: the spirit-type words (bourbon, rye, scotch, irish,
+# canadian). Our file abbreviates, so "Crown Royal Whiskey" vs "Crown Royal
+# Canadian Whisky" is a good match and a one-sided rule would bin it. Those
+# stay clash-only in EXCLUSIVE.
+DISTINCT = {
+    # age, colour and tier
+    "blanco", "reposado", "anejo", "cristalino", "joven",
+    "white", "gold", "dark", "spiced", "black", "aged", "silver", "platinum",
+    # cask, finish and strength
+    "cask", "double", "triple", "sherry", "oak", "port", "barrel", "bonded",
+    # expression names
+    "reserve", "manifest", "heritage", "limited", "anniversary", "vintage",
+    "extra", "prestige", "select", "infusions", "another", "edition",
+    # named limited expressions. A list can never be complete -- Hendrick's
+    # SUNSPELL got through at 0.85 and only reading the pair caught it -- but
+    # each one seen is one that cannot come back. NOT here: "original", which
+    # marks the flagship ("Captain Morgan Original Spiced" IS our Captain
+    # Morgan Spiced), and not "small"/"batch", which appear on both sides.
+    "sunspell", "orbium", "lunar", "neptunia", "amazonia", "adora", "flora",
+    "quinetum", "midsummer", "cristalino",
+    # sub-brands that ride on the parent name: Sauza Silver is not
+    # Sauza HORNITOS Plata, a different tier at a different price.
+    "hornitos", "centenario", "familia", "coleccion",
+    "sour",
+    # flavours
+    "coconut", "vanilla", "peach", "apple", "cherry", "mango", "pineapple",
+    "strawberry", "watermelon", "grape", "orange", "lemon", "lime", "rose",
+    "raspberry", "blueberry", "banana", "mint", "coffee", "chocolate",
+    "caramel", "cinnamon", "ginger", "pear", "honey", "berry", "citrus",
+    "melon", "peppermint", "salted", "pepper", "cucumber", "elderflower",
+}
+
 # words that describe the same thing on both sides
 SYN = {
     "whisky": "whiskey", "bourbon": "bourbon", "scotch": "scotch",
@@ -98,6 +139,18 @@ def norm_tokens(s):
     return out
 
 
+def proof(s):
+    r"""Proof statements, which identifiers() cannot see.
+
+    "120pf" has no word boundary between the digits and the letters, so the
+    \b\d+\b in identifiers() never matched it -- and Everclear Grain Alcohol
+    matched "Everclear Grain Alcohol 120pf". 120 proof and 190 proof are
+    different bottles with the number printed on the label.
+    """
+    return set(re.findall(r"\b(\d+(?:\.\d+)?)\s*(?:pf|proof)\b",
+                          (s or "").lower()))
+
+
 def identifiers(s):
     """Numbers left once size and pack are gone: age statements and the names
     that are numbers. Dropping these is what matched Flor de Cana Centenario
@@ -109,7 +162,10 @@ def identifiers(s):
     return set(toks)
 
 
-SIZE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(ml|l|liter|litre)\b", re.I)
+# US retailers list cans in fluid ounces, not millilitres. Without oz here,
+# every RTD -- High Noon, Cutwater, Surfside, the whole 355mL category --
+# parses as "no size stated" and is then refused for not being 750mL.
+SIZE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(ml|l|liter|litre|fl\.?\s*oz|oz)\b", re.I)
 
 
 def size_ml(text):
@@ -118,9 +174,12 @@ def size_ml(text):
     if not m:
         return None
     v = float(m.group(1))
-    unit = m.group(2).lower()
-    if unit.startswith("l"):
+    unit = re.sub(r"[\s.]", "", m.group(2).lower())
+    if unit in ("l", "liter", "litre"):
         v *= 1000
+    elif unit in ("oz", "floz"):
+        # 12 oz -> 354.9; the trade calls that a 355mL can, so snap to 5mL
+        v = round(v * 29.5735 / 5.0) * 5
     return int(round(v))
 
 
@@ -128,7 +187,8 @@ def bottle_size_ml(b):
     return size_ml(b["s"])
 
 
-PACK_RE = re.compile(r"(\d+)\s*(?:pk|pack)\b", re.I)
+# "4pk", "4 pack" and "4-Pack" are the same thing
+PACK_RE = re.compile(r"(\d+)\s*-?\s*(?:pk|pack)\b", re.I)
 
 
 def pack_of(text):
@@ -224,7 +284,18 @@ def score(b, cand):
     bt = set(norm_tokens(b["n"]))
     # the maker's own words, not the category it sits in
     brand = set(norm_tokens(b["b"])) - GENERIC
-    if brand and not (brand & cand["tokens"]):
+    if not brand:
+        # Brands like "E&J" reduce to single characters, which norm_tokens
+        # drops -- leaving an empty set that skipped the check entirely and
+        # let E&J VSOP match Shabo VSOP. Fall back to a squashed form of the
+        # raw brand and look for it anywhere in the title.
+        raw = re.sub(r"[^a-z0-9]", "", b["b"].lower())
+        raw = re.sub(r"(brandy|whiskey|whisky|vodka|rum|gin|tequila|cognac|"
+                     r"cordials?|cocktail|liqueur)$", "", raw)
+        flat = re.sub(r"[^a-z0-9]", "", (cand["title"] or "").lower())
+        if raw and raw not in flat:
+            return 0.0
+    elif not (brand & cand["tokens"]):
         return 0.0
     if not bt:
         return 0.0
@@ -237,6 +308,17 @@ def score(b, cand):
         ours, theirs = bt & group, cand["tokens"] & group
         if ours and theirs and not (ours & theirs):
             return 0.0
+        # one-sided qualifier: we say Reposado, they say Reposado Cristalino.
+        # The sets overlap, so the clash test above passes, but a cristalino is
+        # a filtered tequila and a different product at a different price.
+        if ours and (theirs - ours):
+            return 0.0
+    # the same test, but for a qualifier we have no word of our own to compare
+    # against. See DISTINCT.
+    if (cand["tokens"] & DISTINCT) - bt:
+        return 0.0
+    if proof(b["n"]) != proof(cand["title"]):
+        return 0.0
     inter = bt & cand["tokens"]
     union = bt | cand["tokens"]
     jacc = len(inter) / float(len(union))

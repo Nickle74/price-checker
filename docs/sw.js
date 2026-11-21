@@ -1,7 +1,14 @@
 /* price check — offline shell.
-   Bump CACHE whenever you regenerate bottles.js or edit the app. */
-var CACHE = 'price-check-v10';
-var IMG_CACHE = 'price-check-img-v1';
+   Bump CACHE whenever you regenerate bottles.js or edit the app.
+
+   Bump IMG_CACHE as well whenever an EXISTING photo is replaced rather than a
+   new one added. Photos are served cache-first with no revalidation, and
+   IMG_CACHE survives activate() by design, so a player who has already seen a
+   bottle keeps that picture for good. Replacing 165 crowd-sourced photos with
+   clean cutouts changed nothing on screen until this bumped -- the app went
+   on serving a hand holding a bottle from a cache it had no reason to doubt. */
+var CACHE = 'price-check-v12';
+var IMG_CACHE = 'price-check-img-v2';
 var IMG_CAP = 300;   // keep the installed footprint sane
 var ASSETS = [
   './',

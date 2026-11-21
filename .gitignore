@@ -18,3 +18,12 @@ tools/api_keys.json
 
 # Cached Shopify catalogue pages: a scratch download, regenerated on demand
 tools/shopify_cache/
+
+# Python bytecode: a .pyc was tracked by accident and shows up as a change
+# every time a tool runs
+__pycache__/
+*.pyc
+
+# Generated report. Rebuild it any time with:
+#   python tools/coverage_report.py
+Bottle Shot Coverage.xlsx
