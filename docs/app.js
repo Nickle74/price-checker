@@ -43,6 +43,113 @@
   var pct = function (x) { return (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%'; };
   var buzz = function (ms) { if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} } };
 
+  // ============================================================
+  // BOTTLE ARTWORK
+  // A photo when we have one, keyed on the restored UPC; otherwise a drawn
+  // bottle so a card is never empty. Coverage grows as images land in
+  // docs/img/ — nothing here needs changing when they do.
+  // ============================================================
+  var IMG_DIR = 'img/';
+
+  // shape + liquid per category. `label` is the paper, `ink` the lettering on
+  // it; pale glass gets an outline or it disappears against the card.
+  var LOOK = {
+    'Whiskey':            { form: 'square', body: '#B5651D', cap: '#3C2A14', label: '#F6EFE0', ink: '#412402' },
+    'Cognac':             { form: 'round',  body: '#8C3A12', cap: '#2A1708', label: '#F6EFE0', ink: '#4A1B0C' },
+    'Brandy':             { form: 'round',  body: '#9A4718', cap: '#2A1708', label: '#F6EFE0', ink: '#4A1B0C' },
+    'Tequila':            { form: 'taper',  body: '#D9B452', cap: '#4A3A12', label: '#FBF7EC', ink: '#412402' },
+    'Rum':                { form: 'square', body: '#7A4A22', cap: '#2A1708', label: '#F6EFE2', ink: '#412402' },
+    'Vodka':              { form: 'tall',   body: '#C6D6E0', cap: '#2B3A42', label: '#FFFFFF', ink: '#042C53', edge: 1 },
+    'Gin':                { form: 'tall',   body: '#BBD3C7', cap: '#1F3A30', label: '#FFFFFF', ink: '#04342C', edge: 1 },
+    'Cordials':           { form: 'round',  body: '#A33B5E', cap: '#3A1324', label: '#FBEAF0', ink: '#4B1528' },
+    'Grain Alcohol':      { form: 'tall',   body: '#D5DBDE', cap: '#3A3A38', label: '#FFFFFF', ink: '#2C2C2A', edge: 1 },
+    'Non-Alcoholic':      { form: 'tall',   body: '#A9CBB6', cap: '#2F4A38', label: '#FFFFFF', ink: '#04342C', edge: 1 },
+    'Prepared Cocktails': { form: 'can',    body: '#D85A30', cap: '#B8B6AD', label: '#FBEAE2', ink: '#4A1B0C' }
+  };
+  var LOOK_FALLBACK = { form: 'tall', body: '#B4B2A9', cap: '#444441', label: '#F1EFE8', ink: '#2C2C2A' };
+
+  function initials(brand) {
+    var words = brand.replace(/[^A-Za-z0-9' ]/g, ' ').split(/\s+/).filter(Boolean);
+    if (!words.length) return '?';
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+
+  function drawnBottle(b) {
+    var L = LOOK[b.c] || LOOK_FALLBACK;
+    var edge = L.edge ? ' stroke="rgba(18,18,17,.22)" stroke-width="1.2"' : '';
+    var shape, bandX, bandW;
+
+    if (L.form === 'can') {
+      shape = '<rect x="36" y="16" width="48" height="126" rx="7" fill="' + L.body + '"' + edge + '/>' +
+              '<rect x="36" y="24" width="48" height="6" fill="' + L.cap + '"/>';
+      bandX = 36; bandW = 48;
+    } else {
+      // cap and neck overlap the shoulder so the silhouette reads as one piece
+      var head = '<rect x="51" y="8" width="18" height="10" rx="2" fill="' + L.cap + '"/>' +
+                 '<rect x="53" y="16" width="14" height="24" fill="' + L.body + '"' + edge + '/>';
+      var body;
+      if (L.form === 'round') {
+        body = '<ellipse cx="60" cy="92" rx="34" ry="50" fill="' + L.body + '"' + edge + '/>';
+        bandX = 30; bandW = 60;
+      } else if (L.form === 'taper') {
+        body = '<path d="M32 140 L38 40 Q38 36 42 36 L78 36 Q82 36 82 40 L88 140 Q88 142 85 142 L35 142 Q32 142 32 140 Z" fill="' + L.body + '"' + edge + '/>';
+        bandX = 36; bandW = 48;
+      } else if (L.form === 'tall') {
+        body = '<rect x="35" y="36" width="50" height="106" rx="5" fill="' + L.body + '"' + edge + '/>';
+        bandX = 35; bandW = 50;
+      } else {
+        body = '<rect x="31" y="38" width="58" height="104" rx="9" fill="' + L.body + '"' + edge + '/>';
+        bandX = 31; bandW = 58;
+      }
+      shape = head + body;
+    }
+
+    var bandY = 80;
+    return '<svg viewBox="0 0 120 152" role="img" aria-label="' + esc(b.c) + ' bottle">' +
+      shape +
+      '<rect x="' + bandX + '" y="' + bandY + '" width="' + bandW + '" height="34" fill="' + L.label + '"/>' +
+      '<text x="' + (bandX + bandW / 2) + '" y="' + (bandY + 23) + '" text-anchor="middle" ' +
+        'font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="600" ' +
+        'letter-spacing="-0.4" fill="' + L.ink + '">' + esc(initials(b.b)) + '</text>' +
+      '</svg>';
+  }
+
+  // name plus pack, for lists where two pack sizes would otherwise look identical
+  function label(b) {
+    return b.k ? b.n + ' ' + b.k + '-pack' : b.n;
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  var shotToken = 0;
+
+  function renderShot(b) {
+    var mine = ++shotToken;
+    var fig = $('shot');
+    fig.innerHTML = drawnBottle(b);
+    fig.classList.remove('has-photo');
+    if (!b.u) return;
+
+    // Try the photo; keep the drawing until it actually decodes, so a missing
+    // file or a dead connection just leaves the drawn bottle in place.
+    var img = new Image();
+    img.alt = b.n;
+    img.decoding = 'async';
+    img.loading = 'eager';
+    img.onload = function () {
+      if (mine !== shotToken) return;   // player already moved to another card
+      fig.innerHTML = '';
+      fig.appendChild(img);
+      fig.classList.add('has-photo');
+    };
+    img.onerror = function () { /* drawn bottle stays */ };
+    img.src = IMG_DIR + b.u + '.webp';
+  }
+
   // ---------- dates ----------
   // Local dates, so the daily turns over at the player's own midnight.
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
@@ -349,6 +456,7 @@
   function renderBottle() {
     var b = game.items[game.idx];
     renderPips(false);
+    renderShot(b);
     $('b-cat').textContent = b.c;
     $('b-tier').textContent = b.t;
     $('b-name').textContent = b.n;
@@ -361,8 +469,15 @@
     var spec = $('b-spec');
     spec.innerHTML = '';
     addSpec(spec, 'Size', b.s);
+    if (b.k) addSpec(spec, 'Pack', b.k + '-pack');
     if (b.f) addSpec(spec, 'Strength', b.f);
     addSpec(spec, 'Stocked in', num(b.a) + ' accts');
+
+    // a multipack is priced as a pack, so say so rather than letting the
+    // player guess the price of one can
+    $('g-hint').textContent = b.k
+      ? 'Average retail, per ' + b.k + '-pack'
+      : 'Average retail, per bottle';
 
     var card = $('bottle');
     card.style.animation = 'none';
@@ -488,7 +603,7 @@
     var strong = document.createElement('b');
     strong.textContent = money(diff) + (r.guess > b.p ? ' over' : ' under');
     recap.appendChild(strong);
-    recap.appendChild(document.createTextNode(' on ' + b.n + ', ' + b.s + '.'));
+    recap.appendChild(document.createTextNode(' on ' + label(b) + ', ' + b.s + '.'));
 
     renderRanks(b);
 
@@ -659,7 +774,7 @@
     var bb = document.createElement('b');
     bb.textContent = 'Average miss ' + pct(avgErr) + '. ';
     g.appendChild(bb);
-    g.appendChild(document.createTextNode(verdict + ' Best call: ' + best.bottle.n +
+    g.appendChild(document.createTextNode(verdict + ' Best call: ' + label(best.bottle) +
       ' at ' + money(best.bottle.p) + '.'));
 
     var list = $('tally');
@@ -670,7 +785,7 @@
 
       var nm = document.createElement('span');
       nm.className = 'trow__name';
-      nm.textContent = r.bottle.n;
+      nm.textContent = label(r.bottle);
 
       var meta = document.createElement('span');
       meta.className = 'trow__meta';

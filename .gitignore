@@ -7,3 +7,8 @@
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Image working files: the drop folder is a staging area, and the API state
+# is local progress. Published images in docs/img/ ARE tracked.
+tools/incoming/
+tools/image_state.json

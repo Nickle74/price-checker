@@ -25,6 +25,11 @@ headlines, thin-line tab bar.
 
 - **Streaks**: land within 15% and you start a streak. Every bottle after the
   first in a streak adds +50, capped at +250. A perfect round is 11,750.
+- **Multipacks** show their pack size and are priced as a pack, not a can —
+  the same Surfside is $17.62 as an 8-pack and $36.17 as an 18-pack.
+- **Each bottle shows a picture**: a photo when `docs/img/<upc>.webp` exists,
+  otherwise one drawn from the category and brand, so a card is never empty.
+  See *Bottle pictures* below.
 - **After each guess** you get the answer and where that brand sits on volume
   in its category — the two brands above it and the two below, by 9-litre
   cases. The ranking is built from every row in the file, not just the playable
@@ -73,11 +78,11 @@ python tools/build_bank.py
 
 Then bump `CACHE` in `docs/sw.js` so installed copies pick up the new data.
 
-**What the builder keeps.** Of 1,320 rows in the file, 995 become playable:
+**What the builder keeps.** Of 1,320 rows in the file, 1,001 become playable:
 
 | Dropped | Rows | Why |
 |---|---|---|
-| Duplicate products | 135 | the same product on several rows at different averages |
+| Duplicate products | 129 | the same product on several rows at different averages |
 | Thin distribution | 95 | stocked in fewer than 10 accounts, so the average is a one-store fluke |
 | Odd sizes | 79 | 50 mL, 100 mL, 200 mL, "REM SIZE" etc. — unguessable |
 | Price outliers | 16 | under $4 or over $400, including a $1,305 Hennessy 700 mL |
@@ -86,6 +91,8 @@ The duplicates matter most. `DON JULIO 1942 ANEJO 750ML` appears three times
 between $159.95 and $196.93 on different UPCs, and two identical-looking cards
 with different right answers is an unwinnable round. The builder keeps the most
 widely stocked row of each product — the price the most shelves actually show.
+Pack size counts as part of the identity, so the 8-, 12- and 18-packs of one
+can stay three separate products rather than collapsing into one.
 
 It also expands the trade abbreviations in `item` and `brand` into something
 readable — `MACALLAN 12YR DBL CASK SCT WSK GLASS 86 PROOF 750ML` becomes
@@ -93,6 +100,36 @@ readable — `MACALLAN 12YR DBL CASK SCT WSK GLASS 86 PROOF 750ML` becomes
 and size out of the name, since those are shown as their own fields. Bare
 numbers are kept deliberately: *Don Julio 1942*, *1800 Silver* and
 *Rémy Martin 1738* lose their identity without them.
+
+## Bottle pictures
+
+Photos live in `docs/img/`, named by the bottle's UPC: `080480280024.webp`.
+If the file is there the card shows it; if not, the card draws a bottle from
+the category and the brand's initials. Coverage can be partial without ever
+looking broken.
+
+**The UPCs in the file are real.** They look wrong — 9 to 11 digits where a
+UPC-A is 12 — because Excel stripped the leading zeros and the check digit.
+Tito's 750 mL is `61994700002` in the sheet and `619947000020` on the bottle.
+`build_bank.py` pads and recomputes the check digit, recovering 965 of 1,001.
+The other 36 are rows Excel mangled into `3.77583E+11`, which cannot be undone.
+
+```
+python tools/fetch_images.py            # drop folder, then a small API batch
+python tools/fetch_images.py --local    # drop folder only, no network
+```
+
+**Use the drop folder.** Put images in `tools/incoming/` named by UPC
+(`080480280024.jpg`) or by the exact bottle name, and the script resizes and
+converts them with no network involved. Supplier media-kit shots belong here:
+they are better pictures than anything scraped, and they are licensed for
+trade use, which retail product photography is not.
+
+**The free API is a trickle, not a solution.** `fetch_images.py` will also try
+upcitemdb, but that endpoint rate-limits after about six lookups regardless of
+pacing, and it has no image for plenty of high-volume brands — Lunazul and
+Espolón among them. It is resumable, so running it daily adds a handful at a
+time, but filling 965 bottles that way is not realistic. Treat it as a top-up.
 
 ## Running it
 

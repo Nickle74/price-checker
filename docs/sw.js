@@ -1,6 +1,8 @@
 /* price check — offline shell.
    Bump CACHE whenever you regenerate bottles.js or edit the app. */
-var CACHE = 'price-check-v4';
+var CACHE = 'price-check-v6';
+var IMG_CACHE = 'price-check-img-v1';
+var IMG_CAP = 300;   // keep the installed footprint sane
 var ASSETS = [
   './',
   './index.html',
@@ -32,7 +34,7 @@ self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(keys.map(function (k) {
-        return k === CACHE ? null : caches.delete(k);
+        return (k === CACHE || k === IMG_CACHE) ? null : caches.delete(k);
       }));
     }).then(function () { return self.clients.claim(); })
   );
@@ -57,6 +59,26 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
+  // Bottle photos are many and optional: never precached, cached as they are
+  // actually shown, and trimmed so an installed copy cannot grow without end.
+  if (url.pathname.indexOf('/img/') !== -1) {
+    e.respondWith(
+      caches.open(IMG_CACHE).then(function (c) {
+        return c.match(e.request).then(function (hit) {
+          if (hit) return hit;
+          return fetch(e.request).then(function (res) {
+            if (res && res.status === 200) {
+              c.put(e.request, res.clone());
+              trim(c);
+            }
+            return res;
+          });
+        });
+      })
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then(function (hit) {
       return hit || fetch(e.request).then(function (res) {
@@ -69,3 +91,12 @@ self.addEventListener('fetch', function (e) {
     })
   );
 });
+
+// Oldest-first eviction. Cache.keys() returns insertion order, so dropping
+// from the front removes the least recently added image.
+function trim(cache) {
+  cache.keys().then(function (keys) {
+    var over = keys.length - IMG_CAP;
+    for (var i = 0; i < over; i++) cache.delete(keys[i]);
+  });
+}

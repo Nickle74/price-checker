@@ -98,6 +98,35 @@ def title_brand(b):
     words = lower_small([x for x in (one_word(w) for w in b.upper().split()) if x])
     return " ".join(words).strip(" -&") or b.title()
 
+def upc_check_digit(d11):
+    return str((10 - sum(int(d11[i]) * (3 if i % 2 == 0 else 1) for i in range(11)) % 10) % 10)
+
+
+def restore_upc(code):
+    """The file's codes are real retail barcodes with the leading zeros and the
+    check digit stripped (Excel's doing): TITO'S 750ML is 61994700002 here and
+    619947000020 on the bottle. Pad and recompute the check digit to get back a
+    valid UPC-A, which is what the product images are keyed on.
+
+    Returns None for the ~50 rows Excel destroyed into '3.77583E+11'.
+    """
+    code = (code or "").strip()
+    if not code.isdigit() or len(code) > 11:
+        return None
+    d = code.zfill(11)
+    return d + upc_check_digit(d)
+
+
+def pack_of(item):
+    """Cans and RTDs are sold by the pack, and the pack size is the single
+    biggest driver of their price -- an 8PK and an 18PK of the same Surfside
+    are $17.62 and $36.17. It sits after the container word, so read it from
+    the raw string before clean_item() cuts there.
+    """
+    m = re.search(r"\b(\d+)\s*PK\b", item.upper())
+    return int(m.group(1)) if m else None
+
+
 def proof_of(item):
     m = re.search(r"(<|>)?\s*(\d+)(?:-(\d+))?(\+)?\s*PROOF", item.upper())
     if not m: return None
@@ -136,6 +165,8 @@ for r in rows:
         "t": TIER_LABEL.get(r["price_tier"], r["price_tier"].title()),
         "f": proof_of(r["item"]),
         "a": accts,
+        "u": restore_upc(r["upc"]),
+        "k": pack_of(r["item"]),
     })
 
 # ---- one card per product -------------------------------------------------
@@ -146,9 +177,13 @@ for r in rows:
 # that is the price the most shelves actually show.
 by_card = collections.OrderedDict()
 for row in kept_rows:
-    k = (row["n"], row["s"])
+    # pack size is part of a product's identity, not a detail: an 8PK and an
+    # 18PK of the same can are different products at very different prices
+    k = (row["n"], row["s"], row["k"])
     cur = by_card.get(k)
-    if cur is None or row["a"] > cur["a"]:
+    # widest distribution wins; a usable UPC breaks a tie, since that is what
+    # the product image is keyed on
+    if cur is None or (row["a"], row["u"] is not None) > (cur["a"], cur["u"] is not None):
         by_card[k] = row
 skipped["duplicate product"] = len(kept_rows) - len(by_card)
 
@@ -178,7 +213,9 @@ for cat in ranks:
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 with open(OUT, "w", encoding="utf-8") as fh:
     fh.write("// Generated from 'Average Price Checker.csv' — do not edit by hand.\n")
-    fh.write("// i=index c=category b=brand n=name s=size p=avg retail price t=tier f=proof a=accounts\n")
+    fh.write("// i=index c=category b=brand n=name s=size p=avg retail price\n")
+    fh.write("// t=tier f=proof a=accounts u=restored UPC-A (null where Excel ate it)\n")
+    fh.write("// k=pack size for multipacks, null for single bottles\n")
     fh.write("window.BOTTLES = ")
     json.dump(bank, fh, ensure_ascii=False, separators=(",", ":"))
     fh.write(";\n")
