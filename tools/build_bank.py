@@ -39,9 +39,17 @@ ABBR = {
  "HRM":"Hiram","HRMNY":"Harmony","VLT":"Violet","BLD":"Blood","PDN":"Pudding",
  "BNA":"Banana","TN":"Tennessee","MMS":"Mimosa","ELDRFLWR":"Elderflower",
  "ORG":"Orange","TR":"Triple",
+ # fourth pass — turned up while checking image coverage; MRGTA alone was
+ # mangling seven cards, and it has vowels so the consonant-soup check missed it
+ "MRGTA":"Margarita","MGRTA":"Margarita","CKTL":"Cocktail","EXCLSV":"Exclusiva",
+ "RSMRY":"Rosemary","CHRRY":"Cherry","CHY":"Cherry","MPL":"Maple","GLDN":"Golden",
+ "MDSLD":"Mudslide","LNG":"Long","ISL":"Island","I-T":"Iced Tea","TRP":"Tropical",
+ "FSHN":"Fashioned","BRTSH":"British","DMNT":"Diamante","STY":"Style",
+ "WHP":"Whipped","YLW":"Yellow","CSK":"Cask","STR":"Strength","SNTR":"Sinatra",
+ "SLCT":"Select","MSTR":"Master","ELDRBRRY":"Elderberry","AUTH":"Authentic",
 }
 
-KEEP_UPPER = {"XO","VS","VSOP","XXO","XXL","NA","RTD","IPA","USA","DIY","VMC","LBV"}
+KEEP_UPPER = {"XO","VS","VSOP","XXO","XXL","NA","RTD","IPA","USA","DIY","VMC","LBV","TLC"}
 SIZES_OK = {"750ML","1.75L","1L","375ML","700ML","355ML","500ML"}
 
 SMALL = {"Of", "The", "And", "De", "Los", "Las", "La", "El", "Du", "Des", "Von"}
@@ -64,11 +72,13 @@ def one_word(w):
     # cards collapse into each other.
     if re.fullmatch(r"\d+P", w):
         return ""
+    # hyphens first: CHI-CHI'S must split into CHI and CHI'S, or the apostrophe
+    # rule swallows the whole word and gives "Chi-chi's"
+    if "-" in w:
+        return "-".join(one_word(p) or p.capitalize() for p in w.split("-"))
     if "'" in w:
         head, _, tail = w.partition("'")
         return head.capitalize() + "'" + tail.lower()
-    if "-" in w:
-        return "-".join(one_word(p) or p.capitalize() for p in w.split("-"))
     return w.capitalize()
 
 
