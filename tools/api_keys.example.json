@@ -1,0 +1,4 @@
+{
+  "_comment": "Copy this file to api_keys.json and paste your key in. api_keys.json is gitignored and never leaves this machine.",
+  "BARCODE_LOOKUP_KEY": "paste-your-barcode-lookup-key-here"
+}

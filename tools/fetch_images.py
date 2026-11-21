@@ -103,16 +103,33 @@ class UpcItemDb(Provider):
 
 
 class BarcodeLookup(Provider):
-    """barcodelookup.com. Month-to-month plans; they do not publish a public
-    price list, so confirm the rate with them before relying on `cost`."""
+    """barcodelookup.com v3.
+
+    Their quota is only deducted on a 200, so products they do not hold cost
+    nothing -- a probe is charged for its hits alone. The ceiling is 100
+    requests a minute. A miss is a 404, not an empty body, so it has to be
+    caught here or every miss would count as an error and skew the probe.
+
+    Their images are served from images.barcodelookup.com rather than pointing
+    at a retailer's CDN, which is a better footing than hotlinked store
+    photography -- still read their terms before republishing.
+    """
     name = "barcodelookup"
     key_env = "BARCODE_LOOKUP_KEY"
-    cost = 0.005
-    pause = 0.4
+    cost = 0.005          # unconfirmed: they publish no price list, ask them
+    pause = 0.7           # ~85/min, under their 100/min ceiling
     URL = "https://api.barcodelookup.com/v3/products?barcode=%s&formatted=y&key=%s"
 
     def images(self, upc):
-        d = json.loads(fetch(self.URL % (upc, read_key(self.key_env))))
+        try:
+            d = json.loads(fetch(self.URL % (upc, read_key(self.key_env))))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return False, []          # not in their catalogue, and not billed
+            if e.code == 403:
+                raise SystemExit("barcodelookup rejected the key (403). "
+                                 "Check BARCODE_LOOKUP_KEY / tools/api_keys.json.")
+            raise
         prods = d.get("products") or []
         if not prods:
             return False, []
@@ -262,8 +279,9 @@ def probe(bottles, prov, sample):
         print("  errors       : %d" % errors)
     if prov.cost:
         total = len([b for b in bottles if b.get("u")])
-        print("  filling the book at this rate: about %d usable photos, $%.2f spent"
-              % (total * withimg / done, total * prov.cost))
+        hits = total * found / done          # vendors bill for hits, not misses
+        print("  filling the book at this rate: about %d usable photos, about $%.2f"
+              % (total * withimg / done, hits * prov.cost))
     if withimg * 1.0 / done < 0.5:
         print("\n  Under half. Not worth paying for -- the gap is catalogue coverage,")
         print("  which a bigger plan does not fix. Try another provider or use")
