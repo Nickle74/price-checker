@@ -202,7 +202,12 @@ for row in by_card.values():
     row["i"] = len(bank)
     bank.append(row)
 
-# ---- brand volume ranking, by category -------------------------------------
+# ---- brand volume ranking, by category AND price segment -------------------
+# Keyed on both, so the comps a player sees sit in the same price segment as
+# the bottle they just guessed. Ranking Hennessy VS against the whole cognac
+# category puts it next to XO, which is a different business; against the rest
+# of its own tier it is a real comparison.
+#
 # Built from EVERY row in the file, not just the playable ones, so the ranking
 # reflects real depletions rather than whatever survived the filters.
 vol = collections.defaultdict(float)
@@ -212,13 +217,14 @@ for r in rows:
     except ValueError:
         continue
     cat = CAT_LABEL.get(r["category"], r["category"].title())
-    vol[(cat, title_brand(r["brand"]))] += cases
+    tier = TIER_LABEL.get(r["price_tier"], r["price_tier"].title())
+    vol[(cat, tier, title_brand(r["brand"]))] += cases
 
 ranks = collections.defaultdict(list)
-for (cat, brand), cases in vol.items():
-    ranks[cat].append([brand, round(cases, 1)])
-for cat in ranks:
-    ranks[cat].sort(key=lambda x: -x[1])
+for (cat, tier, brand), cases in vol.items():
+    ranks[cat + "|" + tier].append([brand, round(cases, 1)])
+for k in ranks:
+    ranks[k].sort(key=lambda x: -x[1])
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 with open(OUT, "w", encoding="utf-8") as fh:
@@ -229,7 +235,7 @@ with open(OUT, "w", encoding="utf-8") as fh:
     fh.write("window.BOTTLES = ")
     json.dump(bank, fh, ensure_ascii=False, separators=(",", ":"))
     fh.write(";\n")
-    fh.write("// Brands per category, ranked by total 9L cases: [brand, cases]\n")
+    fh.write("// Brands per 'Category|Tier' segment, ranked by 9L cases: [brand, cases]\n")
     fh.write("window.BRAND_RANKS = ")
     json.dump(ranks, fh, ensure_ascii=False, separators=(",", ":"))
     fh.write(";\n")

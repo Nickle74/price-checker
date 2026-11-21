@@ -15,3 +15,6 @@ tools/image_state.json
 
 # API keys stay out of git
 tools/api_keys.json
+
+# Cached Shopify catalogue pages: a scratch download, regenerated on demand
+tools/shopify_cache/

@@ -623,20 +623,21 @@
   function renderRanks(b) {
     var box = $('v-ranks');
     var list = $('v-ranks-list');
-    var all = RANKS[b.c];
-    if (!all || !all.length) { box.hidden = true; return; }
+    // same category AND same price segment: comps a rep would actually make
+    var all = RANKS[b.c + '|' + b.t];
+    if (!all || all.length < 2) { box.hidden = true; return; }
 
     var at = -1;
     for (var i = 0; i < all.length; i++) if (all[i][0] === b.b) { at = i; break; }
     if (at === -1) { box.hidden = true; return; }
 
-    // two either side, sliding inwards at the ends so it is always five rows
-    var from = Math.max(0, Math.min(at - 2, all.length - 5));
-    var to = Math.min(all.length, from + 5);
+    // two either side, sliding inwards at the ends; a thin segment shows fewer
+    var span = Math.min(5, all.length);
+    var from = Math.max(0, Math.min(at - 2, all.length - span));
+    var to = Math.min(all.length, from + span);
 
-    // "of 66 brands in Cordials", not "of 66 cordials brands"
     $('v-ranks-h').textContent = b.b + ' is #' + (at + 1) + ' of ' + all.length +
-      ' brands in ' + b.c + ' by volume';
+      ' ' + b.t + ' ' + b.c + ' brands by volume';
 
     list.innerHTML = '';
     for (var k = from; k < to; k++) {
