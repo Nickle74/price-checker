@@ -47,6 +47,18 @@ GENERIC = {"tequila", "vodka", "rum", "gin", "whiskey", "whisky", "bourbon",
 # Mutually exclusive descriptors. If both names state one from the same group
 # and they differ, it is a different product however well the rest overlaps:
 # Woodford Double Oaked Rye is not Woodford Double Oak Bourbon.
+# A listing selling several bottles at once photographs the box, not the
+# bottle, so it can never be the right picture for one card.
+MULTI = ("bundle", "trio", "duo", "gift set", "collection", "variety set",
+         "sampler", "combo", " & ", " and ")
+
+# The spirit itself. Gray Whale Gin is not Gray Whale Vodka.
+SPIRIT = {"tequila", "vodka", "rum", "gin", "whiskey", "cognac", "brandy"}
+CAT_SPIRIT = {
+    "Tequila": "tequila", "Vodka": "vodka", "Rum": "rum", "Gin": "gin",
+    "Whiskey": "whiskey", "Cognac": "cognac", "Brandy": "brandy",
+}
+
 EXCLUSIVE = [
     {"bourbon", "rye", "scotch", "irish", "canadian", "tennessee"},
     {"blanco", "reposado", "anejo", "cristalino", "joven"},
@@ -78,7 +90,9 @@ def norm_tokens(s):
     s = re.sub(r"[^a-z0-9\s]", " ", s)
     out = []
     for w in s.split():
-        if w in STOP:
+        # a stripped apostrophe leaves a bare "s" that matches every possessive
+        # brand in the book -- that is how Tito's matched Hendry's
+        if w in STOP or len(w) < 2:
             continue
         out.append(SYN.get(w, w))
     return out
@@ -203,6 +217,10 @@ def score(b, cand):
     # 12 Year, and Belvedere 10 Organic is not Belvedere Organic
     if identifiers(b["n"]) != cand["ids"]:
         return 0.0
+    low = " " + (cand["title"] or "").lower() + " "
+    if any(m in low for m in MULTI):
+        return 0.0                      # a box of bottles, not this bottle
+
     bt = set(norm_tokens(b["n"]))
     # the maker's own words, not the category it sits in
     brand = set(norm_tokens(b["b"])) - GENERIC
@@ -210,6 +228,11 @@ def score(b, cand):
         return 0.0
     if not bt:
         return 0.0
+
+    mine = CAT_SPIRIT.get(b["c"])
+    theirs = cand["tokens"] & SPIRIT
+    if mine and theirs and mine not in theirs:
+        return 0.0                      # a gin is not a vodka
     for group in EXCLUSIVE:
         ours, theirs = bt & group, cand["tokens"] & group
         if ours and theirs and not (ours & theirs):
@@ -225,15 +248,37 @@ def score(b, cand):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--shop", default="woodencork.com")
-    ap.add_argument("--min-score", type=float, default=0.62)
+    # 0.62 looked reasonable until the pairs were read end to end: below about
+    # 0.9 it was matching Buffalo Trace to the Antique Collection and Jim Beam
+    # Honey to Jim Beam Peach. Near-exact only.
+    ap.add_argument("--min-score", type=float, default=0.95)
     ap.add_argument("--dry-run", action="store_true",
                     help="show the matches and download nothing")
     ap.add_argument("--limit", type=int, default=400)
+    ap.add_argument("--upgrade", action="store_true",
+                    help="also replace photos that came from Open Food Facts. "
+                         "Those are contributor snapshots -- correct products, "
+                         "but often cropped or shot on a worktop -- and a "
+                         "catalogue studio shot is a straight improvement.")
     args = ap.parse_args()
 
     bottles = load_bank()
     need = [b for b in bottles if b.get("u") and not have(b["u"])]
     print("bank: %d bottles, %d still without a photo" % (len(bottles), len(need)))
+
+    if args.upgrade:
+        # only the ones Open Food Facts supplied: never overwrite a catalogue
+        # image with another, and never touch a hand-placed file
+        state = os.path.join(HERE, "image_state.json")
+        soft = set()
+        try:
+            tried = json.load(io.open(state, encoding="utf-8"))["tried"]
+            soft = {u for u, s in tried.get("openfoodfacts", {}).items() if s == "ok"}
+        except Exception:
+            print("  no state file -- cannot tell which photos came from where")
+        upg = [b for b in bottles if b.get("u") in soft and have(b["u"])]
+        print("  plus %d to upgrade from Open Food Facts" % len(upg))
+        need = need + upg
 
     print("\ncatalogue dump from %s:" % args.shop)
     products = dump_catalogue(args.shop)
