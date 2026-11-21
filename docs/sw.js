@@ -1,6 +1,6 @@
 /* price check — offline shell.
    Bump CACHE whenever you regenerate bottles.js or edit the app. */
-var CACHE = 'price-check-v3';
+var CACHE = 'price-check-v4';
 var ASSETS = [
   './',
   './index.html',
@@ -18,7 +18,11 @@ self.addEventListener('install', function (e) {
   e.waitUntil(
     caches.open(CACHE).then(function (c) {
       return Promise.all(ASSETS.map(function (u) {
-        return c.add(u).catch(function () { /* a missing optional asset must not fail the install */ });
+        // cache:'reload' bypasses the browser's own HTTP cache. Without it a
+        // fresh CACHE version can be filled with the stale files the browser
+        // still holds, so bumping the version would not ship an update.
+        return c.add(new Request(u, { cache: 'reload' }))
+                .catch(function () { /* a missing optional asset must not fail the install */ });
       }));
     }).then(function () { return self.skipWaiting(); })
   );
