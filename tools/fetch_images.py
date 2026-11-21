@@ -116,7 +116,11 @@ class BarcodeLookup(Provider):
     """
     name = "barcodelookup"
     key_env = "BARCODE_LOOKUP_KEY"
-    cost = 0.005          # unconfirmed: they publish no price list, ask them
+    # Their cheapest plan is $99/month for 5,000 calls, so about $0.02 a call
+    # -- but it is a monthly subscription, not metered. Filling this book is a
+    # ~971-call one-off, which means the real price is $99 for one month and a
+    # reminder to cancel, not $20 of usage.
+    cost = 99.0 / 5000
     pause = 0.7           # ~85/min, under their 100/min ceiling
     URL = "https://api.barcodelookup.com/v3/products?barcode=%s&formatted=y&key=%s"
 
@@ -282,6 +286,9 @@ def probe(bottles, prov, sample):
         hits = total * found / done          # vendors bill for hits, not misses
         print("  filling the book at this rate: about %d usable photos, about $%.2f"
               % (total * withimg / done, hits * prov.cost))
+        if prov.name == "barcodelookup":
+            print("  (but their floor is a $99/month plan, so the real cost is")
+            print("   $99 for one month and a note to cancel it)")
     if withimg * 1.0 / done < 0.5:
         print("\n  Under half. Not worth paying for -- the gap is catalogue coverage,")
         print("  which a bigger plan does not fix. Try another provider or use")
