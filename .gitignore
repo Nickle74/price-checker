@@ -12,3 +12,6 @@ desktop.ini
 # is local progress. Published images in docs/img/ ARE tracked.
 tools/incoming/
 tools/image_state.json
+
+# API keys stay out of git
+tools/api_keys.json

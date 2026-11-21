@@ -125,6 +125,25 @@ converts them with no network involved. Supplier media-kit shots belong here:
 they are better pictures than anything scraped, and they are licensed for
 trade use, which retail product photography is not.
 
+**Measure coverage before paying any vendor.**
+
+```
+python tools/fetch_images.py --probe 40                        # free catalogue
+python tools/fetch_images.py --provider barcodelookup --probe 40
+```
+
+The probe samples your real UPCs, downloads nothing, and reports the only
+figure that decides a purchase: how many of *your* products the catalogue
+knows, how many carry an image, and what filling the book would cost at that
+rate. No vendor publishes coverage for spirits, and it is the thing that
+varies. Keys go in `tools/api_keys.json` (gitignored) or the environment; a
+new provider is one small class in `fetch_images.py`.
+
+Early numbers on the free catalogue: roughly half, and every miss is
+`total=0` — the product is absent, not throttled. upcitemdb's own docs say
+the free plan has *"the same full access to our database as the paid plans"*,
+so upgrading that one buys throughput you have no use for.
+
 **The free API is a trickle, not a solution.** `fetch_images.py` will also try
 upcitemdb, but that endpoint rate-limits after about six lookups regardless of
 pacing, and it has no image for plenty of high-volume brands — Lunazul and
