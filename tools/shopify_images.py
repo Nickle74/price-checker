@@ -36,6 +36,24 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 STOP = {"the", "a", "an", "and", "of", "with", "by", "in", "ml", "l",
         "bottle", "bottles", "pack", "pk", "liquor", "spirits", "buy"}
 
+# Words that name a category rather than a maker. Many brands in this file are
+# literally "LALO TEQUILA" or "CUTWATER COCKTAIL", so requiring only that some
+# brand word appears let "tequila" alone satisfy the check -- which is how Lalo
+# Blanco ended up wearing a Cincoro bottle.
+GENERIC = {"tequila", "vodka", "rum", "gin", "whiskey", "whisky", "bourbon",
+           "scotch", "cognac", "brandy", "cordial", "cocktail", "liqueur",
+           "seltzer", "wine", "spirits", "alcohol", "non", "alcoholic", "nonalc"}
+
+# Mutually exclusive descriptors. If both names state one from the same group
+# and they differ, it is a different product however well the rest overlaps:
+# Woodford Double Oaked Rye is not Woodford Double Oak Bourbon.
+EXCLUSIVE = [
+    {"bourbon", "rye", "scotch", "irish", "canadian", "tennessee"},
+    {"blanco", "reposado", "anejo", "cristalino", "joven"},
+    {"white", "gold", "dark", "spiced", "black", "aged"},
+    {"vs", "vsop", "xo", "xxo"},
+]
+
 # words that describe the same thing on both sides
 SYN = {
     "whisky": "whiskey", "bourbon": "bourbon", "scotch": "scotch",
@@ -186,11 +204,16 @@ def score(b, cand):
     if identifiers(b["n"]) != cand["ids"]:
         return 0.0
     bt = set(norm_tokens(b["n"]))
-    brand = set(norm_tokens(b["b"]))
+    # the maker's own words, not the category it sits in
+    brand = set(norm_tokens(b["b"])) - GENERIC
     if brand and not (brand & cand["tokens"]):
-        return 0.0                      # brand has to appear at all
+        return 0.0
     if not bt:
         return 0.0
+    for group in EXCLUSIVE:
+        ours, theirs = bt & group, cand["tokens"] & group
+        if ours and theirs and not (ours & theirs):
+            return 0.0
     inter = bt & cand["tokens"]
     union = bt | cand["tokens"]
     jacc = len(inter) / float(len(union))

@@ -52,6 +52,11 @@ ABBR = {
 KEEP_UPPER = {"XO","VS","VSOP","XXO","XXL","NA","RTD","IPA","USA","DIY","VMC","LBV","TLC"}
 SIZES_OK = {"750ML","1.75L","1L","375ML","700ML","355ML","500ML"}
 
+# A brand has to move at least this many 9-litre cases across the whole file to
+# appear at all. Below it you are asking someone to price something that barely
+# exists in the market, which is guesswork rather than knowledge.
+MIN_BRAND_CASES = 10.0
+
 SMALL = {"Of", "The", "And", "De", "Los", "Las", "La", "El", "Du", "Des", "Von"}
 
 
@@ -157,6 +162,18 @@ TIER_LABEL = {
 }
 
 rows = list(csv.DictReader(open(SRC, encoding="utf-8-sig")))
+
+# Brand volume across the whole file, used both to qualify a brand for the app
+# and to rank it later. Counted before any row filtering, so a brand is judged
+# on everything it sells, not just the bottles that survive the other cuts.
+brand_cases = collections.defaultdict(float)
+for r in rows:
+    try:
+        brand_cases[title_brand(r["brand"])] += float(r["nine_l_cases"])
+    except ValueError:
+        pass
+SMALL_BRANDS = {b for b, v in brand_cases.items() if v < MIN_BRAND_CASES}
+
 kept_rows, skipped = [], collections.Counter()
 for r in rows:
     try:
@@ -166,6 +183,8 @@ for r in rows:
     if r["size"] not in SIZES_OK: skipped["size"] += 1; continue
     if accts < 10:                skipped["thin distribution"] += 1; continue
     if not (4.0 <= price <= 400): skipped["price outlier"] += 1; continue
+    if title_brand(r["brand"]) in SMALL_BRANDS:
+        skipped["brand under %g cases" % MIN_BRAND_CASES] += 1; continue
     kept_rows.append({
         "c": CAT_LABEL.get(r["category"], r["category"].title()),
         "b": title_brand(r["brand"]),
@@ -216,9 +235,12 @@ for r in rows:
         cases = float(r["nine_l_cases"])
     except ValueError:
         continue
+    brand = title_brand(r["brand"])
+    if brand in SMALL_BRANDS:
+        continue              # not in the app, so not in its comparisons either
     cat = CAT_LABEL.get(r["category"], r["category"].title())
     tier = TIER_LABEL.get(r["price_tier"], r["price_tier"].title())
-    vol[(cat, tier, title_brand(r["brand"]))] += cases
+    vol[(cat, tier, brand)] += cases
 
 ranks = collections.defaultdict(list)
 for (cat, tier, brand), cases in vol.items():
