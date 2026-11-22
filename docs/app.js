@@ -40,6 +40,16 @@
                               : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   };
   var num = function (n) { return n.toLocaleString('en-US'); };
+
+  // Account counts in the source file top out at 500 -- Crown Royal Apple 500,
+  // Patron Silver 499, Tito's 499 -- so that is the denominator, and a share
+  // of the market reads better on a card than a raw count nobody can scale.
+  // Clamped, because four rows in the file exceed 500 and all four are bad
+  // data: a 200ML Buzzballz 6-pack claims 972. A card must never say 194%.
+  var MAX_ACCOUNTS = 500;
+  var distPct = function (a) {
+    return Math.round(Math.min(a, MAX_ACCOUNTS) / MAX_ACCOUNTS * 100) + '%';
+  };
   var pct = function (x) { return (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%'; };
   var buzz = function (ms) { if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} } };
 
@@ -544,7 +554,7 @@
     addSpec(spec, 'Size', b.s, 'spec--lead');
     if (b.k) addSpec(spec, 'Pack', b.k + '-pack');
     if (b.f) addSpec(spec, 'Strength', b.f);
-    addSpec(spec, 'Stocked in', num(b.a) + ' accts');
+    addSpec(spec, 'Distribution', distPct(b.a));
 
     // a multipack is priced as a pack, so say so rather than letting the
     // player guess the price of one can

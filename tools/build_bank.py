@@ -85,6 +85,21 @@ MIN_BRAND_CASES = 10.0
 # memory test rather than a price test. 200 keeps 613 of 853.
 MIN_ACCOUNTS = 200
 
+# Categories held out of the game. Non-alcoholic went at Nick's request:
+# it sits in its own price tier (NA SPIRITS PRICE TIER) and its own
+# mental model, so it was never really the same guessing game.
+EXCLUDE_CATEGORIES = {"Non-Alcoholic"}
+
+# The source file's account counts top out around 500 -- Crown Royal Apple
+# 500, Patron Silver 499, Tito's 499, Jack Daniel's 499 -- so that is the
+# real ceiling and the denominator for the distribution percentage shown
+# on a card. Four rows exceed it and all four are bad data: BUZZBALLZ ASST
+# 6PK 200ML at 972 (already out, 200ML is not a listed size), a non-alc
+# 'WITHOUT' at 809, and the two Hiyo non-alcs at 578 and 554. Excluding
+# non-alcoholic removes the last three, so nothing in the bank is over
+# 500 -- but the app still clamps, because the next bad row will come.
+MAX_ACCOUNTS = 500
+
 SMALL = {"Of", "The", "And", "De", "Los", "Las", "La", "El", "Du", "Des", "Von"}
 
 
@@ -229,6 +244,8 @@ for r in rows:
     if r["size"] not in SIZES_OK: skipped["size"] += 1; continue
     if r["size"] in EXCLUDE_SIZES: skipped["size held out"] += 1; continue
     if accts < MIN_ACCOUNTS:      skipped["thin distribution"] += 1; continue
+    if CAT_LABEL.get(r["category"], r["category"].title()) in EXCLUDE_CATEGORIES:
+        skipped["category held out"] += 1; continue
     if not (4.0 <= price <= 400): skipped["price outlier"] += 1; continue
     if title_brand(r["brand"]) in SMALL_BRANDS:
         skipped["brand under %g cases" % MIN_BRAND_CASES] += 1; continue
