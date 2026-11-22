@@ -220,6 +220,14 @@ button{font:inherit;color:inherit;margin:0}
   letter-spacing:.02em;
   color:var(--ink-2);
 }
+/* a heading that needs a sentence under it: the popularity row would
+   otherwise leave the player guessing what "obscure" was measured on */
+.section-note{
+  margin:-6px 0 12px;
+  font-size:12.5px;line-height:1.45;
+  color:var(--ink-3);
+  max-width:40ch;
+}
 
 /* ---------- chips ---------- */
 .chips{display:flex;flex-wrap:wrap;gap:8px}

@@ -245,6 +245,10 @@
   // fill a round alone, but they can in company.
   var catSel = [];
   var sizeSel = [];
+  // 'all', 'pop' or 'obs'. Single-valued rather than an array: popular and
+  // obscure are opposite ends of one axis, so choosing both means choosing
+  // neither, and the two sets are built so they never overlap.
+  var scopeSel = 'all';
 
   function toggle(list, v) {
     var i = list.indexOf(v);
@@ -275,24 +279,61 @@
   })();
   var SIZES = Object.keys(sizeCounts).sort(function (a, b) { return sizeCounts[b] - sizeCounts[a]; });
 
+  // ---------- popular / obscure ----------
+  // Ranked on `a`, the number of the 500 accounts that stock a bottle -- the
+  // same figure the card shows as Distribution, and the only per-item measure
+  // of reach the bank carries. Note the floor: every bottle here is already
+  // in at least 200 accounts, so "obscure" means a bottle in 200-odd of them,
+  // not one nobody has heard of. A Luksusowa or a Maraska Slivovitz, not a
+  // garage brand.
+  //
+  // Top and bottom are taken WITHIN each category. Ranked across the whole
+  // bank, "popular" would have been a list of whiskeys and vodkas and
+  // "obscure" whatever category happens to be thinly stocked -- the scope has
+  // to stay a question about price, not a backdoor category filter.
+  var SCOPE_LABEL = { pop: 'Popular', obs: 'Obscure' };
+  var scopeSets = (function () {
+    var byCat = {};
+    BOTTLES.forEach(function (b) { (byCat[b.c] = byCat[b.c] || []).push(b); });
+    var top = {}, bot = {};
+    Object.keys(byCat).forEach(function (c) {
+      var rows = byCat[c].slice().sort(function (x, y) {
+        return (y.a - x.a) || (x.i - y.i);   // index breaks ties, so the split is stable
+      });
+      // Half the category when it holds fewer than 40, so the two ends never
+      // meet in the middle: Cognac has 25 bottles and a flat twenty each way
+      // would have put 15 of them in BOTH scopes. Anything left over in the
+      // middle belongs to neither, which is the point of picking the ends.
+      var k = Math.min(20, Math.floor(rows.length / 2));
+      rows.slice(0, k).forEach(function (b) { top[b.i] = true; });
+      rows.slice(rows.length - k).forEach(function (b) { bot[b.i] = true; });
+    });
+    return { pop: top, obs: bot };
+  })();
+  function scopeKey(label) { return label === 'Popular' ? 'pop' : 'obs'; }
+
   // ============================================================
   // ROUND BUILDING
   // ============================================================
-  function pool(cats, sizes) {
+  function pool(cats, sizes, scope) {
     cats = cats || catSel;
     sizes = sizes || sizeSel;
-    if (!cats.length && !sizes.length) return BOTTLES;
+    scope = scope || scopeSel;
+    if (!cats.length && !sizes.length && scope === 'all') return BOTTLES;
+    var set = scope === 'all' ? null : scopeSets[scope];
     return BOTTLES.filter(function (b) {
       return (!cats.length || cats.indexOf(b.c) !== -1) &&
-             (!sizes.length || sizes.indexOf(b.s) !== -1);
+             (!sizes.length || sizes.indexOf(b.s) !== -1) &&
+             (!set || set[b.i]);
     });
   }
 
-  function pickRound(rng, cats, sizes) {
+  function pickRound(rng, cats, sizes, scope) {
     rng = rng || Math.random;
     cats = cats || catSel;
     sizes = sizes || sizeSel;
-    var src = pool(cats, sizes).slice();
+    scope = scope || scopeSel;
+    var src = pool(cats, sizes, scope).slice();
     // Fisher–Yates
     for (var i = src.length - 1; i > 0; i--) {
       var j = Math.floor(rng() * (i + 1));
@@ -378,6 +419,7 @@
     var bits = [];
     bits.push(catSel.length ? catSel.join(', ') : 'All categories');
     if (sizeSel.length) bits.push(sizeSel.join(', '));
+    if (scopeSel !== 'all') bits.push(SCOPE_LABEL[scopeSel]);
     $('hero-eyebrow').textContent = ROUND_LEN + ' bottles · ' + bits.join(' · ');
     $('hero-meta').textContent = n < ROUND_LEN
       ? num(n) + ' bottle' + (n === 1 ? '' : 's') + ' — need ' + ROUND_LEN + ', pick more'
@@ -448,7 +490,7 @@
     });
   }
 
-  function redraw() { renderChips(); renderSizeChips(); renderHome(); }
+  function redraw() { renderChips(); renderSizeChips(); renderScopeChips(); renderHome(); }
 
   function renderChips() {
     buildChips('chips', CATS, catSel,
@@ -464,13 +506,28 @@
       function () { sizeSel = []; redraw(); });
   }
 
+  // Same row, one difference: these two chips replace each other instead of
+  // adding up, and tapping the lit one turns it off back to All.
+  function renderScopeChips() {
+    buildChips('scope-chips', ['Popular', 'Obscure'],
+      scopeSel === 'all' ? [] : [SCOPE_LABEL[scopeSel]],
+      function (v) { return pool(catSel, sizeSel, v ? scopeKey(v) : 'all').length; },
+      function (v) {
+        var k = scopeKey(v);
+        scopeSel = (scopeSel === k) ? 'all' : k;
+        redraw();
+      },
+      function () { scopeSel = 'all'; redraw(); });
+  }
+
   // ============================================================
   // ROUND
   // ============================================================
   function dailyItems(key) {
-    // 'All' on both axes deliberately: the daily is the same ten bottles for
-    // everyone, so a player's own category or size choice must not touch it.
-    return pickRound(mulberry32(seedFrom('price-check|' + key)), [], []);
+    // 'All' on every axis deliberately: the daily is the same ten bottles for
+    // everyone, so a player's own category, size or popularity choice must not
+    // touch it.
+    return pickRound(mulberry32(seedFrom('price-check|' + key)), [], [], 'all');
   }
 
   function startRound(mode) {
@@ -1007,9 +1064,9 @@
     }
 
     buildKeys();
-    renderChips();
-    renderSizeChips();
-    renderHome();
+    // one call rather than three: a row added to the setup screen and not
+    // added here is a row that silently never draws
+    redraw();
     renderGuide();
 
     $('btn-play').addEventListener('click', function () { startRound('free'); });
