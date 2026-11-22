@@ -80,7 +80,24 @@ EXCLUDE_SIZES = {"1L"}
 # exists in the market, which is guesswork rather than knowledge.
 MIN_BRAND_CASES = 10.0
 
+# An item has to be on at least this many shelves to be worth guessing.
+# At 10 the book was full of things almost nobody stocks, which is a
+# memory test rather than a price test. 200 keeps 613 of 853.
+MIN_ACCOUNTS = 200
+
 SMALL = {"Of", "The", "And", "De", "Los", "Las", "La", "El", "Du", "Des", "Von"}
+
+
+def nearest_99(p):
+    """Snap to the closest X.99.
+
+    Shelf prices are written .99 and players think in .99, so an average
+    of 34.12 reads as a number nobody has ever seen on a shelf. Rounds
+    either way to whichever .99 is closer: 34.12 -> 33.99, 34.60 ->
+    34.99. Price tiers come from the source file's own column, not from
+    this number, so nothing downstream shifts band.
+    """
+    return round(round(p - 0.99) + 0.99, 2)
 
 
 def one_word(w):
@@ -211,7 +228,7 @@ for r in rows:
         skipped["bad number"] += 1; continue
     if r["size"] not in SIZES_OK: skipped["size"] += 1; continue
     if r["size"] in EXCLUDE_SIZES: skipped["size held out"] += 1; continue
-    if accts < 10:                skipped["thin distribution"] += 1; continue
+    if accts < MIN_ACCOUNTS:      skipped["thin distribution"] += 1; continue
     if not (4.0 <= price <= 400): skipped["price outlier"] += 1; continue
     if title_brand(r["brand"]) in SMALL_BRANDS:
         skipped["brand under %g cases" % MIN_BRAND_CASES] += 1; continue
@@ -220,7 +237,7 @@ for r in rows:
         "b": title_brand(r["brand"]),
         "n": clean_item(r["item"], r["brand"]),
         "s": r["size"].replace("ML", "mL"),
-        "p": round(price, 2),
+        "p": nearest_99(price),
         "t": TIER_LABEL.get(r["price_tier"], r["price_tier"].title()),
         "f": proof_of(r["item"]),
         "a": accts,

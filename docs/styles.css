@@ -305,6 +305,10 @@ button{font:inherit;color:inherit;margin:0}
 .spec{display:flex;flex-direction:column;gap:1px;padding-right:18px}
 .spec__l{font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-3)}
 .spec__v{font-size:14.5px;font-weight:600;letter-spacing:-.01em}
+/* Size leads the row: it is the fact the guess turns on, and at 14.5px it
+   read as just another label beside the proof and the account count. */
+.spec--lead .spec__v{font-size:21px;letter-spacing:-.02em;line-height:1.1}
+.spec--lead .spec__l{color:var(--ink-2)}
 
 /* ---------- guess display ---------- */
 .guess{
@@ -443,7 +447,7 @@ button{font:inherit;color:inherit;margin:0}
 .ranks__list{list-style:none;margin:0;padding:0}
 .rrow{
   display:grid;
-  grid-template-columns:26px 1fr auto;
+  grid-template-columns:26px 1fr auto auto;
   align-items:center;gap:10px;
   padding:6px 8px;
   margin:0 -8px;
@@ -454,9 +458,19 @@ button{font:inherit;color:inherit;margin:0}
 .rrow__pos{font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-3);text-align:right}
 .rrow__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rrow__cases{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--ink-3)}
+.rrow__price{
+  font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;
+  min-width:58px;text-align:right;
+}
+.rrow__price.is-none{font-weight:400;color:var(--ink-3)}
 .rrow.is-me{background:var(--ink);color:#fff;font-weight:600}
 .rrow.is-me .rrow__pos,
 .rrow.is-me .rrow__cases{color:rgba(255,255,255,.65)}
+.rrow.is-me .rrow__price{color:#fff}
+.ranks__sub{
+  margin:-2px 0 10px;
+  font-size:12px;color:var(--ink-3);
+}
 .ranks__list::after{
   content:"9-litre cases";
   display:block;text-align:right;

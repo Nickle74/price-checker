@@ -229,8 +229,18 @@
   }
 
   // ---------- state ----------
-  var catFilter = 'All';
-  var sizeFilter = 'All';
+  // Empty means no constraint on that axis. Arrays rather than single values
+  // so a player can line up, say, Cognac + Brandy, or 375mL + 700mL -- which
+  // also rescues the thin slices: neither 700mL (6) nor Grain Alcohol (3) can
+  // fill a round alone, but they can in company.
+  var catSel = [];
+  var sizeSel = [];
+
+  function toggle(list, v) {
+    var i = list.indexOf(v);
+    if (i === -1) list.push(v); else list.splice(i, 1);
+    return list;
+  }
   var game = null;
   var typed = '';
   var currentTab = 'home';
@@ -258,27 +268,31 @@
   // ============================================================
   // ROUND BUILDING
   // ============================================================
-  function pool(cat, size) {
-    cat = cat || catFilter;
-    size = size || sizeFilter;
-    if (cat === 'All' && size === 'All') return BOTTLES;
+  function pool(cats, sizes) {
+    cats = cats || catSel;
+    sizes = sizes || sizeSel;
+    if (!cats.length && !sizes.length) return BOTTLES;
     return BOTTLES.filter(function (b) {
-      return (cat === 'All' || b.c === cat) && (size === 'All' || b.s === size);
+      return (!cats.length || cats.indexOf(b.c) !== -1) &&
+             (!sizes.length || sizes.indexOf(b.s) !== -1);
     });
   }
 
-  function pickRound(rng, cat, size) {
+  function pickRound(rng, cats, sizes) {
     rng = rng || Math.random;
-    cat = cat || catFilter;
-    size = size || sizeFilter;
-    var src = pool(cat, size).slice();
+    cats = cats || catSel;
+    sizes = sizes || sizeSel;
+    var src = pool(cats, sizes).slice();
     // Fisher–Yates
     for (var i = src.length - 1; i > 0; i--) {
       var j = Math.floor(rng() * (i + 1));
       var t = src[i]; src[i] = src[j]; src[j] = t;
     }
     var out = [], seenBrand = {}, perCat = {};
-    var catCap = cat === 'All' ? 3 : ROUND_LEN;
+    // With no category chosen, cap any one of them at 3 so a round stays
+    // varied. With a selection, share the ten out across what was chosen --
+    // pick two categories and you get roughly five of each, not nine and one.
+    var catCap = cats.length ? Math.max(3, Math.ceil(ROUND_LEN / cats.length)) : 3;
 
     for (var pass = 0; pass < 3 && out.length < ROUND_LEN; pass++) {
       for (var k = 0; k < src.length && out.length < ROUND_LEN; k++) {
@@ -351,9 +365,13 @@
   // ============================================================
   function renderHome() {
     var n = pool().length;
-    $('hero-eyebrow').textContent = ROUND_LEN + ' bottles · ' + catFilter +
-      (sizeFilter === 'All' ? '' : ' · ' + sizeFilter);
-    $('hero-meta').textContent = num(n) + ' bottle' + (n === 1 ? '' : 's') + ' in the book';
+    var bits = [];
+    bits.push(catSel.length ? catSel.join(', ') : 'All categories');
+    if (sizeSel.length) bits.push(sizeSel.join(', '));
+    $('hero-eyebrow').textContent = ROUND_LEN + ' bottles · ' + bits.join(' · ');
+    $('hero-meta').textContent = n < ROUND_LEN
+      ? num(n) + ' bottle' + (n === 1 ? '' : 's') + ' — need ' + ROUND_LEN + ', pick more'
+      : num(n) + ' bottle' + (n === 1 ? '' : 's') + ' in the book';
     $('btn-play').disabled = n < ROUND_LEN;
 
     $('st-best').textContent = stats.bestRound ? num(stats.bestRound) : '—';
@@ -386,35 +404,54 @@
   // tequilas come in each format, not how many bottles exist in that size.
   // A combination that cannot fill a round is disabled rather than hidden,
   // so the row does not reshuffle under the thumb.
-  function buildChips(wrapId, values, current, countFor, onPick) {
+  // One builder for both rows. Chips toggle rather than replace, so the count
+  // on each is what that chip adds under the OTHER axis's selection. Nothing
+  // is disabled any more: with multi-select a chip too thin to stand alone is
+  // still worth picking alongside another, and it is the Start button that
+  // reports whether the combination can actually fill a round.
+  function buildChips(wrapId, values, selected, countFor, onPick, onClear) {
     var wrap = $(wrapId);
     wrap.innerHTML = '';
-    ['All'].concat(values).forEach(function (v) {
+
+    var all = document.createElement('button');
+    all.className = 'chip' + (selected.length ? '' : ' is-on');
+    all.appendChild(document.createTextNode('All'));
+    var an = document.createElement('span');
+    an.className = 'chip__n';
+    an.textContent = num(countFor(null));
+    all.appendChild(an);
+    all.addEventListener('click', onClear);
+    wrap.appendChild(all);
+
+    values.forEach(function (v) {
       var count = countFor(v);
       var b = document.createElement('button');
-      b.className = 'chip' + (v === current ? ' is-on' : '');
+      b.className = 'chip' + (selected.indexOf(v) !== -1 ? ' is-on' : '');
       b.appendChild(document.createTextNode(v));
-      var s = document.createElement('span');
-      s.className = 'chip__n';
-      s.textContent = num(count);
-      b.appendChild(s);
-      b.disabled = count < ROUND_LEN && v !== current;
-      if (b.disabled) b.style.opacity = '.4';
+      var sp = document.createElement('span');
+      sp.className = 'chip__n';
+      sp.textContent = num(count);
+      b.appendChild(sp);
+      if (!count) b.style.opacity = '.4';
       b.addEventListener('click', function () { onPick(v); });
       wrap.appendChild(b);
     });
   }
 
+  function redraw() { renderChips(); renderSizeChips(); renderHome(); }
+
   function renderChips() {
-    buildChips('chips', CATS, catFilter,
-      function (c) { return pool(c, sizeFilter).length; },
-      function (c) { catFilter = c; renderChips(); renderSizeChips(); renderHome(); });
+    buildChips('chips', CATS, catSel,
+      function (c) { return pool(c ? [c] : [], sizeSel).length; },
+      function (c) { toggle(catSel, c); redraw(); },
+      function () { catSel = []; redraw(); });
   }
 
   function renderSizeChips() {
-    buildChips('size-chips', SIZES, sizeFilter,
-      function (z) { return pool(catFilter, z).length; },
-      function (z) { sizeFilter = z; renderChips(); renderSizeChips(); renderHome(); });
+    buildChips('size-chips', SIZES, sizeSel,
+      function (z) { return pool(catSel, z ? [z] : []).length; },
+      function (z) { toggle(sizeSel, z); redraw(); },
+      function () { sizeSel = []; redraw(); });
   }
 
   // ============================================================
@@ -423,7 +460,7 @@
   function dailyItems(key) {
     // 'All' on both axes deliberately: the daily is the same ten bottles for
     // everyone, so a player's own category or size choice must not touch it.
-    return pickRound(mulberry32(seedFrom('price-check|' + key)), 'All', 'All');
+    return pickRound(mulberry32(seedFrom('price-check|' + key)), [], []);
   }
 
   function startRound(mode) {
@@ -502,7 +539,9 @@
 
     var spec = $('b-spec');
     spec.innerHTML = '';
-    addSpec(spec, 'Size', b.s);
+    // size is the one spec the guess actually hinges on -- a 1.75L and a 375mL
+    // of the same thing are different questions -- so it is set larger
+    addSpec(spec, 'Size', b.s, 'spec--lead');
     if (b.k) addSpec(spec, 'Pack', b.k + '-pack');
     if (b.f) addSpec(spec, 'Strength', b.f);
     addSpec(spec, 'Stocked in', num(b.a) + ' accts');
@@ -522,9 +561,9 @@
     paintGuess();
   }
 
-  function addSpec(parent, label, value) {
+  function addSpec(parent, label, value, mod) {
     var w = document.createElement('div');
-    w.className = 'spec';
+    w.className = 'spec' + (mod ? ' ' + mod : '');
     var l = document.createElement('span'); l.className = 'spec__l'; l.textContent = label;
     var v = document.createElement('span'); v.className = 'spec__v'; v.textContent = value;
     w.appendChild(l); w.appendChild(v);
@@ -654,6 +693,21 @@
 
   // Where this bottle's brand sits on volume in its category, with the two
   // brands immediately above and below it.
+  // Average shelf price for a brand at one category and size. Built lazily and
+  // cached, because the reveal screen draws five of these per bottle.
+  var compCache = {};
+  function compPrice(brand, cat, size) {
+    var key = brand + '|' + cat + '|' + size;
+    if (compCache.hasOwnProperty(key)) return compCache[key];
+    var sum = 0, n = 0;
+    for (var i = 0; i < BOTTLES.length; i++) {
+      var x = BOTTLES[i];
+      if (x.b === brand && x.c === cat && x.s === size) { sum += x.p; n++; }
+    }
+    compCache[key] = n ? sum / n : null;
+    return compCache[key];
+  }
+
   function renderRanks(b) {
     var box = $('v-ranks');
     var list = $('v-ranks-list');
@@ -672,6 +726,7 @@
 
     $('v-ranks-h').textContent = b.b + ' is #' + (at + 1) + ' of ' + all.length +
       ' ' + b.t + ' ' + b.c + ' brands by volume';
+    $('v-ranks-sub').textContent = 'Average retail at ' + b.s + ' · this one went for ' + money(b.p);
 
     list.innerHTML = '';
     for (var k = from; k < to; k++) {
@@ -687,11 +742,20 @@
       nm.className = 'rrow__name';
       nm.textContent = row[0];
 
+      var pr = document.createElement('span');
+      pr.className = 'rrow__price';
+      var avg = compPrice(row[0], b.c, b.s);
+      // the comp's price is only a fair comparison at the SAME size, so where
+      // that brand has nothing in this format say so rather than quietly
+      // averaging a 1.75L into a 750mL line-up
+      pr.textContent = avg === null ? '—' : money(avg);
+      if (avg === null) pr.classList.add('is-none');
+
       var cs = document.createElement('span');
       cs.className = 'rrow__cases';
       cs.textContent = Math.round(row[1]).toLocaleString('en-US');
 
-      li.appendChild(pos); li.appendChild(nm); li.appendChild(cs);
+      li.appendChild(pos); li.appendChild(nm); li.appendChild(pr); li.appendChild(cs);
       list.appendChild(li);
     }
     box.hidden = false;
