@@ -259,24 +259,24 @@ button{font:inherit;color:inherit;margin:0}
 .scroll--round{
   display:flex;flex-direction:column;gap:14px;padding-top:14px;
   min-height:0;
-  /* On a short phone (a 667-tall SE) the card is still about 80px taller
-     than the room available even at every minimum. Let THIS area scroll
-     rather than the page, so the keypad stays pinned and reachable and only
-     the bottle details move. Taller phones never reach this. */
+  /* Last resort only. The picture now gives up its own height so the spec
+     row always fits, so this should never engage; if a future card does
+     overrun, this area moves and the keypad stays pinned. */
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
 }
 
 .bottle{
-  /* the card claims the spare height so the shot can grow into it. Without
-     this the guess block took every leftover pixel and the bottle stayed at
-     its minimum on all but the largest phone. */
-  /* natural height, neither growing nor shrinking. Letting it flex meant it
-     collapsed under its own content on a short screen and the guess block
-     painted straight over the spec row; letting it grow meant it hit its
-     ceiling on the SMALLEST screen. The shot is sized from the viewport
-     instead, which is predictable at every size. */
-  flex:0 0 auto;
+  /* The card fills the space left over after the pinned keypad, and the
+     PICTURE is the one part of it that flexes -- see .shot. Sizing the shot
+     from the viewport instead (clamp on vh) looked right on an empty card
+     and pushed the spec row off the bottom on a full one: a cocktail with a
+     wrapped name, a brand line, a pack and a strength ran 65px past the
+     screen on a 390x844, which is a 14/15, not a small phone. Text cannot
+     shrink and the size and distribution are the point of the card, so the
+     photograph is what gives way. */
+  flex:1 1 auto;
+  display:flex;flex-direction:column;
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:var(--r-card);
@@ -288,14 +288,26 @@ button{font:inherit;color:inherit;margin:0}
 /* bottle artwork: drawn by default, swapped for a photo when one exists */
 /* a soft tile frames every bottle the same way, drawn or photographed, and
    stops pale glass disappearing into the card */
+/* every other part of the card keeps its natural height; only the shot flexes */
+.bottle > *{flex:0 0 auto}
+
 .shot{
   margin:0 0 12px;
-  /* Sized from the viewport, so a taller phone gives the bottle more room.
-     Bigger than the old clamp(124px,20vh,168px) at every screen size: 147px
-     on a 667 SE where it was 133, 186px on a 14/15 where it was 168, and
-     205px on a Pro Max where it was also 168 -- that ceiling meant the
-     largest phones wasted the space they had. */
-  height:clamp(136px,21vh,290px);
+  /* Takes whatever the text does not need, down to its floor and no further.
+     That makes the picture as large as the card can afford on a tall phone
+     with a short name, and smaller on a crowded card, instead of a fixed
+     height that fits one and overruns the other. The floor is what the
+     bottle still reads at; past it the card area scrolls rather than
+     shrinking the picture into a stamp.
+
+     Basis 0, not auto: the drawn fallback is an <svg> with its own intrinsic
+     height, and with basis auto that intrinsic height becomes the shot's
+     starting size, so the card measured 575px inside a 408px space. At 0 the
+     shot starts from nothing and is purely what is left over. */
+  flex:1 1 0;
+  min-height:96px;
+  max-height:380px;
+  overflow:hidden;
   display:flex;align-items:center;justify-content:center;
   border-radius:var(--r-lg);
   background:linear-gradient(150deg,rgba(220,216,242,.42),rgba(204,229,218,.34) 55%,rgba(243,234,218,.42));
@@ -328,15 +340,15 @@ button{font:inherit;color:inherit;margin:0}
   letter-spacing:-.032em;
   font-weight:600;
 }
-.bottle__brand{margin:0 0 14px;font-size:14px;color:var(--ink-3)}
+.bottle__brand{margin:0 0 10px;font-size:14px;color:var(--ink-3)}
 .bottle__brand[hidden]{display:none}
-.bottle__name.is-solo{margin-bottom:14px}
+.bottle__name.is-solo{margin-bottom:10px}
 
 .bottle__spec{
   display:flex;flex-wrap:wrap;
   row-gap:8px;column-gap:0;
   border-top:1px solid var(--line-2);
-  padding-top:10px;
+  padding-top:8px;
 }
 .spec{display:flex;flex-direction:column;gap:1px;padding-right:18px}
 .spec__l{font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-3)}
@@ -351,7 +363,7 @@ button{font:inherit;color:inherit;margin:0}
   flex:0 0 auto;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   padding:2px 0;
-  min-height:88px;
+  min-height:80px;
 }
 .guess__label{font-size:12px;color:var(--ink-3);letter-spacing:.02em}
 .guess__amount{
@@ -633,6 +645,18 @@ button{font:inherit;color:inherit;margin:0}
 }
 :focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:8px}
 
+/* ---------- mid-height phones (X, 11 Pro, 12/13 mini: 812 tall) ----------
+   A crowded card -- wrapped name, brand line, pack and strength -- was 11px
+   past the screen here with the picture already at its floor. These are the
+   cheapest pixels in the view: a slightly smaller name and readout, and keys
+   2px shorter than the 48 the viewport formula gives them. */
+@media (max-height:830px){
+  .bottle__name{font-size:20px;line-height:1.18}
+  .guess{min-height:70px}
+  .guess__amount{font-size:42px}
+  .key{height:46px}
+}
+
 /* ---------- short phones ---------- */
 @media (max-height:700px){
   .display{font-size:30px}
@@ -642,29 +666,37 @@ button{font:inherit;color:inherit;margin:0}
   .scroll--reveal{padding-top:18px}
 }
 
-/* ---------- short screens ----------
+/* ---------- tight screens ----------
    A 667-tall phone (SE, 8) cannot show the picture, the name, the spec row,
-   the readout and the keypad at once -- measured, it is about 30px short even
-   with the shot at its floor. Rather than let the spec row fall off the
-   bottom, which is where the size lives, everything gives up a few pixels
-   here. Taller phones are untouched. */
-@media (max-height:720px){
-  .shot{height:118px}
-  .bottle{padding:14px}
-  .bottle__name{font-size:19px;line-height:1.2}
+   the readout and the keypad at once, so everything gives up a few pixels.
+   Width counts as well as height: a 360-wide Android at 740 tall wraps the
+   name to three lines and the spec row to three, which costs more than the
+   74 extra pixels of height it has -- it overran by 52px when this block was
+   keyed on height alone. */
+@media (max-height:760px), (max-width:370px){
+  .shot{min-height:96px}
+  .bottle{padding:12px}
+  .bottle__name{font-size:18px;line-height:1.16}
   .bottle__tags{margin-bottom:8px}
   .bottle__spec{padding-top:8px;row-gap:6px}
   .spec__l{font-size:9.5px}
   .spec__v{font-size:13.5px}
   .spec--lead .spec__v{font-size:18px}
-  .guess{min-height:72px}
-  .guess__amount{font-size:38px}
-  .guess__label,.guess__hint{font-size:11px}
+  /* "Your guess" goes: a large dollar figure over a keypad needs no caption,
+     and the line is worth about 16px here. The hint below it STAYS -- it
+     reads "Average retail, per 8-pack" on a multipack, which is the basis of
+     the price being asked for, not decoration. */
+  .guess{min-height:58px}
+  .guess__amount{font-size:34px}
+  .guess__label{display:none}
+  .guess__hint{font-size:11px}
   /* label beside value rather than above it: the spec row goes from two
      stacked lines to one, which is most of the shortfall on its own */
   .spec{flex-direction:row;align-items:baseline;gap:5px;padding-right:12px}
-  .bottle__spec{row-gap:4px}
-  .key{height:41px}
-  .keys{gap:5px;margin-bottom:6px}
-  .pad .btn{padding:12px 20px}
+  .bottle__spec{row-gap:3px}
+  .key{height:40px}
+  .keys{gap:4px;margin-bottom:5px}
+  .pad{padding:4px var(--pad) calc(6px + var(--safe-b))}
+  .bottle__tags{margin-bottom:6px}
+  .pad .btn{padding:11px 20px}
 }
