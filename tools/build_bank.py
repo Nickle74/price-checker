@@ -312,6 +312,19 @@ for (cat, tier, brand), cases in vol.items():
 for k in ranks:
     ranks[k].sort(key=lambda x: -x[1])
 
+# Ship only the segments a card can actually reach. The table is keyed
+# category|tier and built from the whole file, so excluding a category or
+# tightening a filter leaves segments no bottle can ever look up -- 19 of 64
+# after non-alcoholic went. They are harmless to the app and still wrong to
+# publish: this table carries brand 9-litre volumes, which is the very data
+# the source CSV is kept out of git for. If no card can show it, it does not
+# belong in a public file.
+reachable = {row["c"] + "|" + row["t"] for row in kept_rows}
+dropped = [k for k in ranks if k not in reachable]
+for k in dropped:
+    del ranks[k]
+print("rank segments: %d kept, %d dropped as unreachable" % (len(ranks), len(dropped)))
+
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 with open(OUT, "w", encoding="utf-8") as fh:
     fh.write("// Generated from 'Average Price Checker.csv' — do not edit by hand.\n")
