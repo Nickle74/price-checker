@@ -700,8 +700,8 @@
     var foot = document.createElement('div');
     foot.className = 'ladder__foot';
     foot.textContent = comparable
-      ? '9-litre cases in ' + rows[0].t + ' ' + rows[0].c
-      : '9-litre cases for each brand in its own category and tier — not comparable down the list';
+      ? '9-litre cases over 52 weeks, in ' + rows[0].t + ' ' + rows[0].c
+      : '9-litre cases over 52 weeks, each brand in its own category and tier — not comparable down the list';
     box.appendChild(foot);
   }
 
@@ -784,7 +784,7 @@
       money(b.p), null, 'fig--lead');
 
     var vol = volOf(b);
-    addFig(figs, '9-litre cases', vol ? num(Math.round(vol)) : '—',
+    addFig(figs, '9-litre cases, 52 weeks', vol ? num(Math.round(vol)) : '—',
       vol ? b.b + ' in ' + b.t + ' ' + b.c : 'not ranked in this segment');
     addFig(figs, 'Distribution', distPct(b.a), 'of ' + num(MAX_ACCOUNTS) + ' accounts');
     if (b.f) addFig(figs, 'Strength', b.f);

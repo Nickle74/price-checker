@@ -1,6 +1,13 @@
-import csv, json, re, os, collections
+import csv, json, re, os, collections, sys
 
-SRC = "C:/Users/admin/OneDrive/Documents/Claude/Claude/Price Checker/Average Price Checker.csv"
+# The source file can be given as an argument, so a new export can be built
+# and inspected where it sits instead of being copied over the only copy of
+# the current one first. docs/data/bottles.js is tracked, so a build from the
+# wrong file is one `git checkout` away from undone; the CSV would not be.
+#
+#   python build_bank.py "G:/My Drive/results (5).csv"
+SRC = sys.argv[1] if len(sys.argv) > 1 else \
+    "C:/Users/admin/OneDrive/Documents/Claude/Claude/Price Checker/Average Price Checker.csv"
 OUT = "C:/Users/admin/OneDrive/Documents/Claude/Claude/Price Checker/docs/data/bottles.js"
 
 CONTAINERS = ("GLASS","PLASTIC","ALUMINUM","CAN","TETRA","POUCH","BOX","CARTON","PET","ALUM")
