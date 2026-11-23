@@ -27,3 +27,7 @@ __pycache__/
 # Generated report. Rebuild it any time with:
 #   python tools/coverage_report.py
 Bottle Shot Coverage.xlsx
+
+# Generated photo audit: contact sheets plus a ranked CSV. Rebuild with:
+#   python tools/photo_audit.py
+Photo Audit/
