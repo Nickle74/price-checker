@@ -102,9 +102,34 @@ DISTINCT = {
     # flavours
     "coconut", "vanilla", "peach", "apple", "cherry", "mango", "pineapple",
     "strawberry", "watermelon", "grape", "orange", "lemon", "lime", "rose",
-    "raspberry", "blueberry", "banana", "mint", "coffee", "chocolate",
+    # blackberry was missing while blueberry was here, and the bank has a
+    # Crown Royal Blackberry: without it "Jack Daniels Black" and "jack
+    # daniels blackberry" differ by one unguarded word
+    "raspberry", "blueberry", "blackberry", "banana", "mint", "coffee", "chocolate",
     "caramel", "cinnamon", "ginger", "pear", "honey", "berry", "citrus",
     "melon", "peppermint", "salted", "pepper", "cucumber", "elderflower",
+    # The ready-to-drink half of the vocabulary, which lived only in
+    # rtd_match.py because that matcher was built for cans and this one was
+    # not. Loosening the sums made the gap bite: "Nutrl Assorted" reached 0.91
+    # against "nutrl vodka CRANBERRY seltzer variety", and "High Noon Iced Tea
+    # Assorted" reached 0.92 against a "variety iced tea LAKE pack" -- both
+    # real products, neither of them ours.
+    "cranberry", "tangerine", "kiwi", "blood", "prickly", "passion", "pina",
+    "lemonade", "limeade", "grapefruit", "tropical", "cola", "espresso",
+    "gingerbread", "punch", "drop", "tang", "tease", "lemonsqueezy",
+    # cocktail styles: a margarita is not a paloma
+    "margarita", "martini", "paloma", "colada", "mudslide", "mule",
+    "russian", "transfusion", "vodkarita", "rita", "tiki", "shirley",
+    "washington", "bali",
+    # co-brands and sub-lines that ride on the parent name
+    "dole", "fugu", "ocean", "spray", "refreshers", "breeze",
+    # a limited assortment is not the standing one
+    "lake",
+    # NOT here, on purpose: classic, light, golden, green, sweet, half, fruit
+    # and authentic. Each reads as an expression name but each also turns up
+    # as marketing boilerplate on a retailer's title, and a one-sided DISTINCT
+    # word REJECTS -- the same trap as "blue", which looks like an expression
+    # until you notice "100% blue agave" on half the tequila listings.
 }
 
 # words that describe the same thing on both sides
@@ -266,6 +291,59 @@ def index_shop(products):
     return out
 
 
+# Words that cost a match without telling the two products apart, removed
+# from the SUMS only and never from the gates.
+#
+# The score is 0.45*jaccard + 0.45*coverage + 0.1*size, so a single word in
+# our name that the retailer leaves out costs about 0.30 -- enough on its own
+# to push a correct pair under any sane threshold:
+#
+#   "Pinnacle Original Vodka"       vs "Pinnacle Vodka"        0.70
+#   "Bulleit Bourbon Whiskey"       vs "Bulleit Bourbon"       0.70
+#   "Caravella Limoncello Cordials" vs "Caravella Limoncello"  0.70
+#
+# GENERIC is the category a bottle sits in rather than the maker's own words,
+# so it is already the right vocabulary -- except that `bourbon` and `scotch`
+# are also EXCLUSIVE[0] members, and those stay out: the gate protects a clash
+# but the sums should still reward agreeing on the style.
+#
+# `original` joins them for the reason DISTINCT already records in its own
+# comment: it marks the flagship, so "Captain Morgan Original Spiced" IS our
+# Captain Morgan Spiced. The alternatives to a flagship are flavours and
+# tiers, and those are guarded.
+FILLER = (GENERIC - {"bourbon", "scotch"}) | {"original"}
+
+# Our file says Assorted where a retailer says Variety; they are the same
+# pack. Treated as one word rather than as filler, so a variety pack still
+# cannot match a single-flavour one.
+SYNONYM = {"assorted": "variety"}
+
+
+def fold(tokens):
+    """Synonyms folded together. Nothing removed."""
+    return {SYNONYM.get(t, t) for t in tokens}
+
+
+def squash(tokens, agreed):
+    """Tokens that count toward the sums.
+
+    Filler is dropped ONLY where it is not already agreed on. Dropping it
+    everywhere made the change cut both ways: removing a word the two sides
+    SHARE shrinks the intersection and the union together, so the remaining
+    mismatch looms larger and the score falls.
+
+        "Ronrico Silver Rum" vs "Ronrico Light Rum Silver Label"
+        raw      inter 3 / union 5 -> 0.82
+        squashed inter 2 / union 4 -> 0.78   <- lost a match it used to make
+
+    Three of the twenty-three photographs collected an hour earlier failed
+    that way. Keeping agreed filler in means the result can only ever rise:
+    the intersection is unchanged and both denominators can only shrink, so
+    no pair that matched before can stop matching now.
+    """
+    return {t for t in tokens if t not in FILLER} | agreed
+
+
 def score(b, cand):
     """0..1 confidence that this shop product is this bottle."""
     bs = bottle_size_ml(b)
@@ -319,10 +397,17 @@ def score(b, cand):
         return 0.0
     if proof(b["n"]) != proof(cand["title"]):
         return 0.0
-    inter = bt & cand["tokens"]
-    union = bt | cand["tokens"]
+    # Every GATE above reads the raw tokens. Only the arithmetic below reads
+    # the squashed ones, so loosening the sums cannot loosen a refusal: a rye
+    # against a bourbon is still EXCLUSIVE[0], a gin against a vodka is still
+    # CAT_SPIRIT, and a one-sided flavour is still DISTINCT.
+    bf, cf = fold(bt), fold(cand["tokens"])
+    inter = bf & cf
+    bts = squash(bf, inter) or bf
+    cts = squash(cf, inter) or cf
+    union = bts | cts
     jacc = len(inter) / float(len(union))
-    covered = len(inter) / float(len(bt))   # how much of our name is accounted for
+    covered = len(inter) / float(len(bts))  # how much of our name is accounted for
     bonus = 0.1 if (bs and bs in cand["sizes"]) else 0.0
     return min(1.0, 0.45 * jacc + 0.45 * covered + bonus)
 
