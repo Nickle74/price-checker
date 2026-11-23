@@ -394,7 +394,7 @@
   // ============================================================
   // VIEWS
   // ============================================================
-  var VIEWS = ['home', 'round', 'reveal', 'sum', 'learn', 'practice', 'stats', 'guide'];
+  var VIEWS = ['home', 'round', 'reveal', 'sum', 'learn', 'card', 'practice', 'stats', 'guide'];
   function show(name) {
     VIEWS.forEach(function (v) { $('view-' + v).hidden = (v !== name); });
     var inGame = (name === 'round' || name === 'reveal' || name === 'sum');
@@ -660,8 +660,10 @@
     box.appendChild(head);
 
     rows.forEach(function (b, i) {
-      var r = document.createElement('div');
+      var r = document.createElement('button');
+      r.type = 'button';
       r.className = 'lrow';
+      r.addEventListener('click', function () { openCard(b); });
       var vol = volOf(b);
       if (comparable && vol && vol === topVol) r.classList.add('is-top');
 
@@ -701,6 +703,145 @@
       ? '9-litre cases in ' + rows[0].t + ' ' + rows[0].c
       : '9-litre cases for each brand in its own category and tier — not comparable down the list';
     box.appendChild(foot);
+  }
+
+  // ---------- the bottle card ----------
+  // Reached by tapping a ladder row. Where the ladder answers "what does the
+  // shelf cost", this answers "what is this one and how big is it" -- the
+  // photograph large enough to recognise, the price on its own, and the
+  // volume both as a number and as a position in its segment.
+  var cardScroll = 0;
+
+  function openCard(b) {
+    // remember where the ladder was: coming back to the top of fifty rows,
+    // having tapped row forty, is its own small punishment
+    cardScroll = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
+    renderCard(b);
+    show('card');
+  }
+
+  function closeCard() {
+    show('learn');
+    // show() zeroes the window scroll, so this has to come after it
+    if (document.scrollingElement) document.scrollingElement.scrollTop = cardScroll;
+  }
+
+  function addFig(parent, label, value, note, mod) {
+    var d = document.createElement('div');
+    d.className = 'fig' + (mod ? ' ' + mod : '');
+    var l = document.createElement('span');
+    l.className = 'fig__l';
+    l.textContent = label;
+    var v = document.createElement('span');
+    v.className = 'fig__v';
+    v.textContent = value;
+    d.appendChild(l);
+    d.appendChild(v);
+    if (note) {
+      var n = document.createElement('span');
+      n.className = 'fig__n';
+      n.textContent = note;
+      d.appendChild(n);
+    }
+    parent.appendChild(d);
+    return d;
+  }
+
+  function renderCard(b) {
+    $('c-brand').textContent = b.b;
+    $('c-name').textContent = b.n;
+
+    // the big shot: the drawn bottle first, swapped for the photograph when
+    // one decodes, exactly as the round does it
+    var fig = $('c-shot');
+    fig.innerHTML = drawnBottle(b);
+    fig.classList.remove('has-photo');
+    if (b.u) {
+      var img = new Image();
+      img.alt = b.n;
+      img.decoding = 'async';
+      img.onload = function () {
+        fig.innerHTML = '';
+        fig.appendChild(img);
+        fig.classList.add('has-photo');
+      };
+      img.src = IMG_DIR + b.u + '.webp';
+    }
+
+    var tags = $('c-tags');
+    tags.innerHTML = '';
+    [['tag tag--cat', b.c], ['tag', b.t], ['tag', b.s + (b.k ? ' · ' + b.k + '-pack' : '')]]
+      .forEach(function (t) {
+        var sp = document.createElement('span');
+        sp.className = t[0];
+        sp.textContent = t[1];
+        tags.appendChild(sp);
+      });
+
+    var figs = $('c-figures');
+    figs.innerHTML = '';
+    addFig(figs, b.k ? 'Average retail, per ' + b.k + '-pack' : 'Average retail',
+      money(b.p), null, 'fig--lead');
+
+    var vol = volOf(b);
+    addFig(figs, '9-litre cases', vol ? num(Math.round(vol)) : '—',
+      vol ? b.b + ' in ' + b.t + ' ' + b.c : 'not ranked in this segment');
+    addFig(figs, 'Distribution', distPct(b.a), 'of ' + num(MAX_ACCOUNTS) + ' accounts');
+    if (b.f) addFig(figs, 'Strength', b.f);
+    addFig(figs, 'Size', b.s);
+
+    fillRanks(b, { box: 'c-ranks', head: 'c-ranks-h', sub: 'c-ranks-sub', list: 'c-ranks-list' },
+      true, 'Average retail in ' + b.t + ' at ' + b.s +
+            ' · a dash means that brand sells nothing there');
+
+    renderAlso(b);
+  }
+
+  // Everything else the brand sells, whatever the size -- the one question a
+  // single ladder row cannot answer, since the ladder is pinned to one format.
+  function renderAlso(b) {
+    var box = $('c-also'), head = $('c-also-h');
+    var rest = BOTTLES.filter(function (x) { return x.b === b.b && x !== b; })
+      .sort(function (x, y) { return x.p - y.p; });
+
+    box.innerHTML = '';
+    if (!rest.length) {
+      box.hidden = head.hidden = true;
+      return;
+    }
+    box.hidden = head.hidden = false;
+    head.textContent = 'The rest of ' + b.b;
+
+    rest.forEach(function (x) {
+      var r = document.createElement('button');
+      r.className = 'lrow';
+      r.type = 'button';
+
+      var body = document.createElement('div');
+      body.className = 'lrow__body';
+      var nm = document.createElement('span');
+      nm.className = 'lrow__name';
+      nm.textContent = x.n;
+      body.appendChild(nm);
+      var sub = document.createElement('span');
+      sub.className = 'lrow__brand';
+      sub.textContent = x.s + (x.k ? ' · ' + x.k + '-pack' : '') + ' · ' + x.t;
+      body.appendChild(sub);
+      r.appendChild(body);
+
+      var pr = document.createElement('span');
+      pr.className = 'lrow__price';
+      pr.textContent = money(x.p);
+      r.appendChild(pr);
+
+      // staying on the card rather than pushing another one, so Back always
+      // means the ladder and never a chain of cards to climb out of
+      r.addEventListener('click', function () {
+        renderCard(x);
+        if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+      });
+      box.appendChild(r);
+    });
   }
 
   // ---------- Practice ----------
@@ -1209,21 +1350,34 @@
   // Average shelf price for a brand at one category and size. Built lazily and
   // cached, because the reveal screen draws five of these per bottle.
   var compCache = {};
-  function compPrice(brand, cat, size) {
-    var key = brand + '|' + cat + '|' + size;
+  // Scoped to the TIER as well as the size, because the list it feeds is a
+  // tier segment. Without the tier, Crown Royal showed $44.37 in a table of
+  // Super Premium whiskeys -- its five Super Premium 750mLs are all $25.99,
+  // and the average was being dragged up by an Ultra XO, an Ultra 12 Year and
+  // a $140.99 Luxury 18 Year that are not in that segment at all. It read as
+  // the dearest brand on the list when it is the same price as the rest.
+  // Costs about four points more dashes (29% of rank rows to 33%), which is
+  // the right trade for a column that means what the heading above it says.
+  function compPrice(brand, cat, size, tier) {
+    var key = brand + '|' + cat + '|' + size + '|' + (tier || '');
     if (compCache.hasOwnProperty(key)) return compCache[key];
     var sum = 0, n = 0;
     for (var i = 0; i < BOTTLES.length; i++) {
       var x = BOTTLES[i];
-      if (x.b === brand && x.c === cat && x.s === size) { sum += x.p; n++; }
+      if (x.b === brand && x.c === cat && x.s === size &&
+          (!tier || x.t === tier)) { sum += x.p; n++; }
     }
     compCache[key] = n ? sum / n : null;
     return compCache[key];
   }
 
-  function renderRanks(b) {
-    var box = $('v-ranks');
-    var list = $('v-ranks-list');
+  // The reveal screen and the bottle card both want this list, so it takes
+  // the element ids rather than owning them. `full` is the difference between
+  // them: mid-round you get the two brands either side, which is a comparison;
+  // on a card you get the whole segment, which is a map.
+  function fillRanks(b, ids, full, subText) {
+    var box = $(ids.box);
+    var list = $(ids.list);
     // same category AND same price segment: comps a rep would actually make
     var all = RANKS[b.c + '|' + b.t];
     if (!all || all.length < 2) { box.hidden = true; return; }
@@ -1232,14 +1386,20 @@
     for (var i = 0; i < all.length; i++) if (all[i][0] === b.b) { at = i; break; }
     if (at === -1) { box.hidden = true; return; }
 
-    // two either side, sliding inwards at the ends; a thin segment shows fewer
-    var span = Math.min(5, all.length);
-    var from = Math.max(0, Math.min(at - 2, all.length - span));
-    var to = Math.min(all.length, from + span);
+    var from, to;
+    if (full) {
+      from = 0;
+      to = all.length;
+    } else {
+      // two either side, sliding inwards at the ends; a thin segment shows fewer
+      var span = Math.min(5, all.length);
+      from = Math.max(0, Math.min(at - 2, all.length - span));
+      to = Math.min(all.length, from + span);
+    }
 
-    $('v-ranks-h').textContent = b.b + ' is #' + (at + 1) + ' of ' + all.length +
+    $(ids.head).textContent = b.b + ' is #' + (at + 1) + ' of ' + all.length +
       ' ' + b.t + ' ' + b.c + ' brands by volume';
-    $('v-ranks-sub').textContent = 'Average retail at ' + b.s + ' · this one went for ' + money(b.p);
+    $(ids.sub).textContent = subText;
 
     list.innerHTML = '';
     for (var k = from; k < to; k++) {
@@ -1257,7 +1417,7 @@
 
       var pr = document.createElement('span');
       pr.className = 'rrow__price';
-      var avg = compPrice(row[0], b.c, b.s);
+      var avg = compPrice(row[0], b.c, b.s, b.t);
       // the comp's price is only a fair comparison at the SAME size, so where
       // that brand has nothing in this format say so rather than quietly
       // averaging a 1.75L into a 750mL line-up
@@ -1272,6 +1432,11 @@
       list.appendChild(li);
     }
     box.hidden = false;
+  }
+
+  function renderRanks(b) {
+    fillRanks(b, { box: 'v-ranks', head: 'v-ranks-h', sub: 'v-ranks-sub', list: 'v-ranks-list' },
+      false, 'Average retail in ' + b.t + ' at ' + b.s + ' \u00b7 this one went for ' + money(b.p));
   }
 
   function nextStep() {
@@ -1531,6 +1696,7 @@
       renderDrill();
     });
     $('btn-drill-check').addEventListener('click', checkDrill);
+    $('btn-card-back').addEventListener('click', closeCard);
 
     $('btn-play').addEventListener('click', function () { startRound('free'); });
     $('btn-again').addEventListener('click', function () { startRound('free'); });

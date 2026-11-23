@@ -843,3 +843,63 @@ button{font:inherit;color:inherit;margin:0}
 }
 .drill__verdict b{color:var(--ink);font-weight:600}
 #drill-actions{margin-top:18px}
+
+
+/* ============================================================
+   BOTTLE CARD — pushed from a Learn row
+   ============================================================ */
+/* A ladder row is a button now. Without the reset it inherits the browser's
+   own font and centring and stops looking like a row at all. */
+button.lrow{
+  width:100%;
+  border:0;
+  font:inherit;
+  color:inherit;
+  text-align:left;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+button.lrow:active{background:var(--surface-2)}
+button.lrow:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+
+.shot--card{
+  height:clamp(190px,30vh,330px);
+  margin:6px 0 14px;
+}
+.cardname{
+  margin:0 0 16px;
+  font-size:clamp(23px,6.2vw,28px);
+  line-height:1.16;
+  letter-spacing:-.034em;
+  font-weight:600;
+}
+
+.figures{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:1px;
+  background:var(--line);
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  overflow:hidden;
+  margin-bottom:22px;
+}
+.fig{
+  background:var(--surface);
+  padding:13px 14px;
+  display:flex;flex-direction:column;gap:2px;
+  min-width:0;
+}
+.fig__l{font-size:10.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-3)}
+.fig__v{
+  font-size:19px;font-weight:600;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.fig__n{font-size:11px;color:var(--ink-3);letter-spacing:0;text-transform:none}
+/* price is what the card is for, so it is read first and spans both columns */
+.fig--lead{grid-column:1 / -1}
+.fig--lead .fig__v{font-size:30px;letter-spacing:-.045em}
+
+/* the brand's other bottles: no rank column, no volume column -- within one
+   brand and tier the volume figure is the same number on every row */
+.ladder--also .lrow{grid-template-columns:1fr auto}
+.ladder--also .lrow__price{font-size:14px}

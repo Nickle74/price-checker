@@ -204,7 +204,36 @@
       <div class="chips" id="l-tier-chips"></div>
 
       <h2 class="section-h" id="l-count">The ladder</h2>
+      <p class="section-note" id="l-hint">Tap any bottle for its card.</p>
       <div class="ladder" id="ladder"></div>
+    </div>
+  </section>
+
+  <!-- ===================== BOTTLE CARD ===================== -->
+  <!-- Pushed from a ladder row, not a tab. The tab bar stays up so the card
+       is a detour rather than a place you have to escape from. -->
+  <section class="view view--card" id="view-card" hidden>
+    <header class="topbar">
+      <button class="icon-btn" id="btn-card-back" aria-label="Back to the ladder">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>
+      </button>
+      <span class="wordmark" id="c-brand">Brand</span>
+    </header>
+    <div class="scroll">
+      <figure class="shot shot--card" id="c-shot"></figure>
+      <div class="bottle__tags" id="c-tags"></div>
+      <h2 class="cardname" id="c-name">Bottle</h2>
+
+      <div class="figures" id="c-figures"></div>
+
+      <section class="ranks" id="c-ranks" hidden>
+        <h3 class="ranks__h" id="c-ranks-h">Volume rank</h3>
+        <p class="ranks__sub" id="c-ranks-sub"></p>
+        <ol class="ranks__list" id="c-ranks-list"></ol>
+      </section>
+
+      <h2 class="section-h" id="c-also-h" hidden>The rest of the range</h2>
+      <div class="ladder ladder--also" id="c-also" hidden></div>
     </div>
   </section>
 
@@ -290,7 +319,9 @@
         <p>The same shelf, laid out instead of hidden. Pick one size, then any
         categories and tiers, and read the ladder cheapest to dearest with each
         brand&rsquo;s <b>9-litre cases</b> beside it. The gaps are the lesson: two
-        bottles a dollar apart can be twenty times apart on volume.</p>
+        bottles a dollar apart can be twenty times apart on volume. Tap any row
+        for its <b>card</b> &mdash; the bottle shot large, the price on its own, the
+        volume, and where that brand sits in its segment.</p>
       </div>
       <div class="card">
         <h3>Practice</h3>
