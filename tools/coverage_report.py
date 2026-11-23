@@ -1,10 +1,21 @@
-"""Which bottles in the bank have a photo and which do not.
+"""Which bottles have a usable photo, which need one, ranked by volume.
 
-Writes a workbook with three sheets: a per-category summary, everything we
-hold an image for, and everything still missing -- the missing sheet ordered
-by brand volume, so the top of it is always the work worth doing next.
+Three states, not two. "Has an image" stopped being the useful question once
+the Learn card started drawing bottles at 330px: 53 of the published photos
+are phone snapshots that paint their own grey rectangle on the card, and for
+the purpose of going and getting a better one they belong with the missing
+rather than with the done. photo_audit.py decides which is which; this reads
+its verdict and joins it to the bank.
 
-    python coverage_report.py
+    Summary    per category: good, poor, missing
+    To shoot   poor + missing in one list, biggest brands first -- the
+               working list, with the UPC to name a dropped file by
+    Have       the clean cut-outs, for checking what is already covered
+
+Run photo_audit.py first; without its CSV every published photo is simply
+counted as present and the workbook says so.
+
+    python photo_audit.py && python coverage_report.py
 """
 
 import csv
@@ -19,17 +30,16 @@ from openpyxl.utils import get_column_letter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BANK = os.path.join(HERE, "..", "docs", "data", "bottles.js")
+IMG = os.path.join(HERE, "..", "docs", "img")
+AUDIT = os.path.join(HERE, "..", "Photo Audit", "photo_audit.csv")
 LIB = r"C:\Users\admin\OneDrive\Documents\Claude\Claude\Bottle Shots"
 MANIFEST = os.path.join(LIB, "manifest.csv")
 OUT = os.path.join(HERE, "..", "Bottle Shot Coverage.xlsx")
 
 HEAD = PatternFill("solid", fgColor="1F3864")
 BAND = PatternFill("solid", fgColor="EDF2F9")
+POOR = PatternFill("solid", fgColor="FCE8E6")
 WHITE = Font(color="FFFFFF", bold=True)
-
-
-def gtin14(upc):
-    return re.sub(r"\D", "", str(upc)).zfill(14)
 
 
 def bank():
@@ -54,7 +64,21 @@ def library():
     return by_gtin
 
 
-def sheet(wb, title, columns, rows, widths):
+def verdicts():
+    """upc -> (kind, score, why) from the photo audit, where it has run."""
+    out = {}
+    if os.path.exists(AUDIT):
+        with io.open(AUDIT, encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                out[r["upc12"]] = (r["kind"], r["score"], r["why"])
+    return out
+
+
+def gtin14(upc):
+    return re.sub(r"\D", "", str(upc)).zfill(14)
+
+
+def sheet(wb, title, columns, rows, widths, flag_col=None):
     ws = wb.create_sheet(title)
     ws.append(columns)
     for c in range(1, len(columns) + 1):
@@ -64,8 +88,11 @@ def sheet(wb, title, columns, rows, widths):
         ws.column_dimensions[get_column_letter(c)].width = widths[c - 1]
     for i, r in enumerate(rows):
         ws.append(r)
-        if i % 2:
-            for c in range(1, len(columns) + 1):
+        poor = flag_col is not None and str(r[flag_col]).startswith("poor")
+        for c in range(1, len(columns) + 1):
+            if poor:
+                ws.cell(row=i + 2, column=c).fill = POOR
+            elif i % 2:
                 ws.cell(row=i + 2, column=c).fill = BAND
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
@@ -75,58 +102,82 @@ def sheet(wb, title, columns, rows, widths):
 def main():
     bottles, vol = bank()
     lib = library()
+    vd = verdicts()
+    published = set(f[:-5] for f in os.listdir(IMG) if f.endswith(".webp"))
 
-    have, missing = [], []
+    good, poor, missing = [], [], []
     for b in bottles:
-        g = gtin14(b["u"]) if b.get("u") else None
-        rec = lib.get(g) if g else None
-        common = [b["b"], b["n"], b["s"], b.get("k") or "", b["c"], b.get("t", ""),
-                  b.get("p", ""), round(vol.get(b["b"], 0)), b.get("a", "")]
-        if rec:
-            have.append(common + [g, rec.get("size_confirmed", ""),
-                                  rec.get("note", ""), rec.get("source_site", ""),
-                                  rec.get("filename", "")])
-        else:
-            why = "no UPC in the price file" if not b.get("u") else "not found yet"
-            missing.append(common + [g or "", why])
+        upc = b.get("u") or ""
+        g = gtin14(upc) if upc else ""
+        rec = lib.get(g)
+        has = upc in published
+        kind, score, why = vd.get(upc, ("", "", ""))
 
-    missing.sort(key=lambda r: (-r[7], r[0], r[1]))
-    have.sort(key=lambda r: (r[4], r[0], r[1]))
+        common = [b["b"], b["n"], b["s"], b.get("k") or "", b["c"], b.get("t", ""),
+                  b.get("p", ""), round(vol.get(b["b"], 0)), b.get("a", ""), upc]
+
+        if not has:
+            missing.append(common + [
+                "missing", "no UPC in the price file" if not upc else "never found",
+                "", ""])
+        elif kind == "opaque, boxed":
+            poor.append(common + [
+                "poor - visible box", why or "opaque background", score,
+                (rec or {}).get("source_site", "(pre-library)")])
+        else:
+            good.append(common + [
+                kind or "published", why, score,
+                (rec or {}).get("source_site", "(pre-library)")])
+
+    # the working list: both kinds of gap, biggest brands first
+    todo = poor + missing
+    todo.sort(key=lambda r: (-r[7], r[0], r[1]))
+    good.sort(key=lambda r: (-r[7], r[0], r[1]))
 
     cats = {}
-    for b in bottles:
-        g = gtin14(b["u"]) if b.get("u") else None
-        d = cats.setdefault(b["c"], [0, 0])
-        d[0 if (g and g in lib) else 1] += 1
+    for r in good:
+        cats.setdefault(r[4], [0, 0, 0])[0] += 1
+    for r in poor:
+        cats.setdefault(r[4], [0, 0, 0])[1] += 1
+    for r in missing:
+        cats.setdefault(r[4], [0, 0, 0])[2] += 1
 
     wb = Workbook()
     wb.remove(wb.active)
 
-    summary = [[k, v[0], v[1], v[0] + v[1],
-                round(100.0 * v[0] / (v[0] + v[1]), 1)]
-               for k, v in sorted(cats.items(), key=lambda kv: -(kv[1][0] + kv[1][1]))]
-    tot_h = sum(v[0] for v in cats.values())
-    tot_m = sum(v[1] for v in cats.values())
-    summary.append(["ALL", tot_h, tot_m, tot_h + tot_m,
-                    round(100.0 * tot_h / (tot_h + tot_m), 1)])
+    summary = []
+    for k, v in sorted(cats.items(), key=lambda kv: -sum(kv[1])):
+        tot = sum(v)
+        summary.append([k, v[0], v[1], v[2], tot, round(100.0 * v[0] / tot, 1)])
+    tg = sum(v[0] for v in cats.values())
+    tp = sum(v[1] for v in cats.values())
+    tm = sum(v[2] for v in cats.values())
+    summary.append(["ALL", tg, tp, tm, tg + tp + tm,
+                    round(100.0 * tg / (tg + tp + tm), 1)])
     ws = sheet(wb, "Summary",
-               ["Category", "Have image", "Missing", "Total", "% covered"],
-               summary, [26, 12, 10, 10, 11])
-    for c in range(1, 6):
+               ["Category", "Good photo", "Poor photo", "No photo", "Total",
+                "% good"],
+               summary, [24, 12, 12, 11, 9, 10])
+    for c in range(1, 7):
         ws.cell(row=len(summary) + 1, column=c).font = Font(bold=True)
 
     cols = ["Brand", "Product", "Size", "Pack", "Category", "Price tier",
-            "Avg retail", "Brand 9L cases", "Accounts"]
-    w = [24, 40, 9, 6, 20, 14, 11, 15, 10]
-    sheet(wb, "Have image (%d)" % len(have),
-          cols + ["GTIN-14", "Size confirmed", "Flag", "Source", "Filename"],
-          have, w + [17, 14, 30, 22, 52])
-    sheet(wb, "Missing (%d)" % len(missing),
-          cols + ["GTIN-14", "Why"], missing, w + [17, 24])
+            "Avg retail", "Brand 9L cases", "Accounts", "UPC (name the file this)"]
+    w = [24, 40, 9, 6, 20, 14, 11, 15, 10, 22]
+
+    sheet(wb, "To shoot (%d)" % len(todo),
+          cols + ["State", "Why", "Audit score", "Current source"],
+          todo, w + [19, 26, 11, 20], flag_col=10)
+    sheet(wb, "Have (%d)" % len(good),
+          cols + ["State", "Flags", "Audit score", "Source"],
+          good, w + [19, 20, 11, 20])
 
     wb.save(OUT)
-    print("%d have, %d missing -> %s" % (len(have), len(missing),
-                                         os.path.abspath(OUT)))
+    print("good %d, poor %d, missing %d  ->  %s"
+          % (len(good), len(poor), len(missing), os.path.abspath(OUT)))
+    if not vd:
+        print("NOTE: no photo_audit.csv, so nothing is marked poor. "
+              "Run photo_audit.py first.")
 
 
 if __name__ == "__main__":
