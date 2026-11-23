@@ -394,13 +394,19 @@
   // ============================================================
   // VIEWS
   // ============================================================
-  var VIEWS = ['home', 'round', 'reveal', 'sum', 'stats', 'guide'];
+  var VIEWS = ['home', 'round', 'reveal', 'sum', 'learn', 'practice', 'stats', 'guide'];
   function show(name) {
     VIEWS.forEach(function (v) { $('view-' + v).hidden = (v !== name); });
     var inGame = (name === 'round' || name === 'reveal' || name === 'sum');
     $('tabs').hidden = inGame;
     var sc = $('view-' + name).querySelector('.scroll');
     if (sc) sc.scrollTop = 0;
+    // On every view but the round, it is the WINDOW that scrolls: .view is
+    // min-height:100dvh and simply grows, so the line above has never had
+    // anything to reset. Switching tabs kept the last page's scroll offset,
+    // which put a new page's first screen out of sight -- Practice opened
+    // with the tiles already half off the top.
+    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
   }
   function setTab(name) {
     currentTab = name;
@@ -408,6 +414,8 @@
       t.classList.toggle('is-on', t.dataset.tab === name);
     });
     if (name === 'stats') renderStats();
+    if (name === 'learn') renderLearn();
+    if (name === 'practice') renderPractice();
     show(name);
   }
 
@@ -518,6 +526,444 @@
         redraw();
       },
       function () { scopeSel = 'all'; redraw(); });
+  }
+
+  // ============================================================
+  // LEARN + PRACTICE
+  // ============================================================
+  // Tiers ordered by what they actually cost rather than by hand, so the row
+  // cannot drift out of order if the price file renames or adds one.
+  var TIERS = (function () {
+    var sum = {}, n = {};
+    BOTTLES.forEach(function (b) { sum[b.t] = (sum[b.t] || 0) + b.p; n[b.t] = (n[b.t] || 0) + 1; });
+    return Object.keys(n).sort(function (a, b) { return sum[a] / n[a] - sum[b] / n[b]; });
+  })();
+
+  // 9-litre cases for a brand WITHIN its own category and tier -- the same
+  // figure the reveal screen ranks on. A brand can appear in two tiers with
+  // two different numbers (E&J is 5,860 in Mid and 1,379 in Premium), so the
+  // key has to carry all three parts.
+  var volOf = (function () {
+    var m = {};
+    Object.keys(BRAND_RANKS).forEach(function (k) {
+      BRAND_RANKS[k].forEach(function (pair) { m[k + '|' + pair[0]] = pair[1]; });
+    });
+    return function (b) { return m[b.c + '|' + b.t + '|' + b.b]; };
+  })();
+
+  // A tile is about 68px wide on a phone, and every name ends with its own
+  // category -- "Hornitos Plata Tequila" in a row of tequilas. Drop it.
+  function shortName(b) {
+    var tail = b.c.split(' ').pop().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return b.n.replace(new RegExp('\\s+' + tail + '$', 'i'), '');
+  }
+
+  // A chip row where one value is always chosen: no All, nothing to clear.
+  function buildPicker(wrapId, values, current, countFor, onPick) {
+    var wrap = $(wrapId);
+    wrap.innerHTML = '';
+    values.forEach(function (v) {
+      var count = countFor(v);
+      var b = document.createElement('button');
+      b.className = 'chip' + (v === current ? ' is-on' : '');
+      b.appendChild(document.createTextNode(v));
+      var sp = document.createElement('span');
+      sp.className = 'chip__n';
+      sp.textContent = num(count);
+      b.appendChild(sp);
+      if (!count) b.style.opacity = '.4';
+      b.addEventListener('click', function () { onPick(v); });
+      wrap.appendChild(b);
+    });
+  }
+
+  function miniShot(b) {
+    var fig = document.createElement('div');
+    fig.className = 'tile__shot';
+    fig.innerHTML = drawnBottle(b);
+    if (b.u) {
+      var img = new Image();
+      img.alt = '';
+      img.decoding = 'async';
+      img.onload = function () { fig.innerHTML = ''; fig.appendChild(img); };
+      img.src = IMG_DIR + b.u + '.webp';
+    }
+    return fig;
+  }
+
+  // ---------- Learn ----------
+  // One size at a time, and it is required: the same bottle in 375mL and
+  // 1.75L would otherwise appear twice in one ladder at two prices, which
+  // makes the ladder unreadable rather than richer.
+  var lSize = null, lCats = [], lTiers = [];
+
+  function learnPool(size, cats, tiers) {
+    size = size || lSize;
+    cats = cats || lCats;
+    tiers = tiers || lTiers;
+    return BOTTLES.filter(function (b) {
+      return b.s === size &&
+             (!cats.length || cats.indexOf(b.c) !== -1) &&
+             (!tiers.length || tiers.indexOf(b.t) !== -1);
+    });
+  }
+
+  function renderLearn() {
+    buildPicker('l-size-chips', SIZES, lSize,
+      function (z) { return learnPool(z).length; },
+      function (z) { lSize = z; renderLearn(); });
+    buildChips('l-cat-chips', CATS, lCats,
+      function (c) { return learnPool(lSize, c ? [c] : []).length; },
+      function (c) { toggle(lCats, c); renderLearn(); },
+      function () { lCats = []; renderLearn(); });
+    buildChips('l-tier-chips', TIERS, lTiers,
+      function (t) { return learnPool(lSize, lCats, t ? [t] : []).length; },
+      function (t) { toggle(lTiers, t); renderLearn(); },
+      function () { lTiers = []; renderLearn(); });
+    renderLadder();
+  }
+
+  function renderLadder() {
+    var rows = learnPool().slice().sort(function (a, b) {
+      return (a.p - b.p) || a.n.localeCompare(b.n);
+    });
+    var box = $('ladder');
+    box.innerHTML = '';
+    $('l-count').textContent = rows.length
+      ? 'The ladder · ' + num(rows.length) + ' at ' + lSize
+      : 'The ladder';
+
+    if (!rows.length) {
+      var e = document.createElement('p');
+      e.className = 'empty';
+      e.textContent = 'Nothing at ' + lSize + ' in that selection. Try another size, or clear a filter.';
+      box.appendChild(e);
+      return;
+    }
+
+    // The volume figures only compare with each other inside ONE category and
+    // tier. Mix two of either and the column is still true row by row, but
+    // the leader of the list means nothing, so nothing is marked.
+    var cats = {}, tiers = {};
+    rows.forEach(function (b) { cats[b.c] = 1; tiers[b.t] = 1; });
+    var comparable = Object.keys(cats).length === 1 && Object.keys(tiers).length === 1;
+    var topVol = 0;
+    if (comparable) rows.forEach(function (b) { topVol = Math.max(topVol, volOf(b) || 0); });
+
+    var head = document.createElement('div');
+    head.className = 'ladder__head';
+    ['', 'Bottle', 'Price', '9L cases'].forEach(function (t) {
+      var sp = document.createElement('span');
+      sp.textContent = t;
+      head.appendChild(sp);
+    });
+    box.appendChild(head);
+
+    rows.forEach(function (b, i) {
+      var r = document.createElement('div');
+      r.className = 'lrow';
+      var vol = volOf(b);
+      if (comparable && vol && vol === topVol) r.classList.add('is-top');
+
+      var pos = document.createElement('span');
+      pos.className = 'lrow__pos';
+      pos.textContent = String(i + 1);
+      r.appendChild(pos);
+
+      var body = document.createElement('div');
+      body.className = 'lrow__body';
+      var nm = document.createElement('span');
+      nm.className = 'lrow__name';
+      nm.textContent = b.n;
+      body.appendChild(nm);
+      var br = document.createElement('span');
+      br.className = 'lrow__brand';
+      br.textContent = b.t + ' · ' + b.c;
+      body.appendChild(br);
+      r.appendChild(body);
+
+      var pr = document.createElement('span');
+      pr.className = 'lrow__price';
+      pr.textContent = money(b.p);
+      r.appendChild(pr);
+
+      var vl = document.createElement('span');
+      vl.className = 'lrow__vol';
+      vl.textContent = vol ? num(Math.round(vol)) : '—';
+      r.appendChild(vl);
+
+      box.appendChild(r);
+    });
+
+    var foot = document.createElement('div');
+    foot.className = 'ladder__foot';
+    foot.textContent = comparable
+      ? '9-litre cases in ' + rows[0].t + ' ' + rows[0].c
+      : '9-litre cases for each brand in its own category and tier — not comparable down the list';
+    box.appendChild(foot);
+  }
+
+  // ---------- Practice ----------
+  // One category and one size, both required. Several tiers is fine and makes
+  // the drill readable: inside a single tier the five prices can sit within a
+  // couple of dollars of each other, which is a memory test rather than a
+  // judgement of where a bottle belongs.
+  var pSize = null, pCat = null, pTiers = [];
+  var DRILL_N = 5;
+  var drill = null;
+
+  function practicePool(size, cat, tiers) {
+    size = size || pSize;
+    cat = cat || pCat;
+    tiers = tiers || pTiers;
+    return BOTTLES.filter(function (b) {
+      return b.s === size && b.c === cat &&
+             (!tiers.length || tiers.indexOf(b.t) !== -1);
+    });
+  }
+
+  function renderPractice() {
+    buildPicker('p-size-chips', SIZES, pSize,
+      function (z) { return practicePool(z).length; },
+      function (z) { pSize = z; drill = null; renderPractice(); });
+    buildPicker('p-cat-chips', CATS, pCat,
+      function (c) { return practicePool(pSize, c).length; },
+      function (c) { pCat = c; drill = null; renderPractice(); });
+    buildChips('p-tier-chips', TIERS, pTiers,
+      function (t) { return practicePool(pSize, pCat, t ? [t] : []).length; },
+      function (t) { toggle(pTiers, t); drill = null; renderPractice(); },
+      function () { pTiers = []; drill = null; renderPractice(); });
+
+    if (!drill) newDrill();
+    renderDrill();
+  }
+
+  // Five bottles at five DIFFERENT prices. Two at $26.99 would leave the
+  // drill with no single right answer, and the player marked wrong for an
+  // order every bit as correct as the one being checked against.
+  function newDrill() {
+    var pool = practicePool();
+    var byPrice = {};
+    pool.forEach(function (b) { (byPrice[b.p] = byPrice[b.p] || []).push(b); });
+
+    var prices = Object.keys(byPrice);
+    for (var i = prices.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = prices[i]; prices[i] = prices[j]; prices[j] = t;
+    }
+
+    var picked = [], usedBrand = {};
+    prices.forEach(function (pr) {
+      if (picked.length >= DRILL_N) return;
+      var opts = byPrice[pr];
+      // a different brand each time where the shelf allows it, so the drill
+      // is five decisions and not one brand's own line-up
+      var fresh = opts.filter(function (b) { return !usedBrand[b.b]; });
+      var from = fresh.length ? fresh : opts;
+      var b = from[Math.floor(Math.random() * from.length)];
+      usedBrand[b.b] = true;
+      picked.push(b);
+    });
+
+    if (picked.length < DRILL_N) {
+      drill = { short: picked.length };
+      return;
+    }
+
+    var order = picked.slice();
+    do {
+      for (var k = order.length - 1; k > 0; k--) {
+        var m = Math.floor(Math.random() * (k + 1));
+        var tmp = order[k]; order[k] = order[m]; order[m] = tmp;
+      }
+      // never hand the player a drill that is already solved
+    } while (isSorted(order));
+
+    drill = { items: picked, order: order, checked: false };
+  }
+
+  function isSorted(list) {
+    for (var i = 1; i < list.length; i++) if (list[i].p < list[i - 1].p) return false;
+    return true;
+  }
+
+  function renderDrill() {
+    var box = $('drill'), empty = $('drill-empty');
+    var check = $('btn-drill-check');
+
+    if (!drill || drill.short !== undefined) {
+      box.hidden = true;
+      empty.hidden = false;
+      var have = drill ? drill.short : 0;
+      empty.textContent = 'Only ' + have + ' bottle' + (have === 1 ? '' : 's') +
+        ' at a price of its own in ' + (pCat || '—') + ' at ' + (pSize || '—') +
+        '. Five are needed — add a price tier, or try another size.';
+      check.disabled = true;
+      return;
+    }
+    empty.hidden = true;
+    box.hidden = false;
+    check.disabled = drill.checked;
+
+    var correct = drill.items.slice().sort(function (a, b) { return a.p - b.p; });
+    var tiles = $('tiles');
+    tiles.innerHTML = '';
+
+    drill.order.forEach(function (b, i) {
+      var el = document.createElement('div');
+      el.className = 'tile';
+      el.tabIndex = 0;
+      // which slot of the CURRENT order this tile came from; commitOrder reads
+      // it back after a drag has rearranged the row
+      el.dataset.k = String(i);
+      el.setAttribute('aria-label', shortName(b) + (drill.checked ? ', ' + money(b.p) : ''));
+      el.appendChild(miniShot(b));
+
+      var nm = document.createElement('span');
+      nm.className = 'tile__name';
+      nm.textContent = shortName(b);
+      el.appendChild(nm);
+
+      var pr = document.createElement('span');
+      pr.className = 'tile__price';
+      pr.textContent = money(b.p);
+      pr.hidden = !drill.checked;
+      el.appendChild(pr);
+
+      if (drill.checked) el.classList.add(correct[i] === b ? 'is-right' : 'is-wrong');
+      tiles.appendChild(el);
+    });
+
+    var v = $('drill-verdict');
+    if (drill.checked) {
+      var hits = 0;
+      drill.order.forEach(function (b, i) { if (correct[i] === b) hits++; });
+      v.innerHTML = '';
+      var strong = document.createElement('b');
+      strong.textContent = hits + ' of ' + DRILL_N;
+      v.appendChild(strong);
+      v.appendChild(document.createTextNode(hits === DRILL_N
+        ? ' — the whole ladder, in order.'
+        : ' in the right place. Cheapest to dearest runs ' +
+          correct.map(function (b) { return shortName(b); }).join(' → ') + '.'));
+      v.hidden = false;
+    } else {
+      v.hidden = true;
+    }
+  }
+
+  function checkDrill() {
+    if (!drill || drill.short !== undefined || drill.checked) return;
+    drill.checked = true;
+    renderDrill();
+  }
+
+  // ---------- dragging the tiles ----------
+  // Pointer events, not HTML5 drag-and-drop: dragstart and drop never fire on
+  // iOS Safari, which is most of the phones this gets played on. touch-action
+  // is none on a tile (see the CSS) so a drag is not read as a page scroll.
+  function wireDrag() {
+    var tiles = $('tiles');
+    var el = null, startX = 0, originLeft = 0, moved = false;
+
+    tiles.addEventListener('pointerdown', function (e) {
+      var t = e.target.closest ? e.target.closest('.tile') : null;
+      if (!t || !tiles.contains(t)) return;
+      el = t;
+      moved = false;
+      startX = e.clientX;
+      originLeft = t.offsetLeft;
+      t.setPointerCapture(e.pointerId);
+      t.classList.add('is-drag');
+      e.preventDefault();
+    });
+
+    tiles.addEventListener('pointermove', function (e) {
+      if (!el) return;
+      var dx = e.clientX - startX;
+      if (Math.abs(dx) > 3) moved = true;
+
+      // Keep swapping while the tile's centre is still past a neighbour's.
+      // One swap per move event would be enough for a finger, which reports
+      // a move every few pixels, but a flick -- or a mouse dragged fast --
+      // can arrive as a single jump of three tiles, and the row has to
+      // follow all of it.
+      var swapped = true, guard = 0;
+      while (swapped && guard++ < 16) {
+        swapped = false;
+        var centre = originLeft + dx + el.offsetWidth / 2;
+        var sibs = Array.prototype.slice.call(tiles.children);
+        for (var i = 0; i < sibs.length; i++) {
+          var s = sibs[i];
+          if (s === el) continue;
+          var mid = s.offsetLeft + s.offsetWidth / 2;
+          var elIsAfter = !!(s.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
+          if ((elIsAfter && centre < mid) || (!elIsAfter && centre > mid)) {
+            // Where the tile should stay on screen while the row relays out
+            // underneath it. Without this correction it jumps out from under
+            // the finger by a tile's width on every swap.
+            var visualLeft = originLeft + dx;
+            tiles.insertBefore(el, elIsAfter ? s : s.nextSibling);
+            originLeft = el.offsetLeft;
+            startX = e.clientX - (visualLeft - originLeft);
+            dx = e.clientX - startX;
+            swapped = true;
+            break;
+          }
+        }
+      }
+      el.style.transform = 'translateX(' + dx + 'px)';
+    });
+
+    function end() {
+      if (!el) return;
+      el.style.transform = '';
+      el.classList.remove('is-drag');
+      var didMove = moved;
+      el = null;
+      if (didMove) commitOrder();
+    }
+    tiles.addEventListener('pointerup', end);
+    tiles.addEventListener('pointercancel', end);
+
+    // Arrows move a focused tile, so the drill is playable without a drag at
+    // all -- and a way out if a pointer ever gets stuck mid-gesture.
+    tiles.addEventListener('keydown', function (e) {
+      var t = e.target.closest ? e.target.closest('.tile') : null;
+      if (!t) return;
+      var sibs = Array.prototype.slice.call(tiles.children);
+      var i = sibs.indexOf(t);
+      if (e.key === 'ArrowLeft' && i > 0) {
+        tiles.insertBefore(t, sibs[i - 1]);
+      } else if (e.key === 'ArrowRight' && i < sibs.length - 1) {
+        tiles.insertBefore(t, sibs[i + 1].nextSibling);
+      } else {
+        return;
+      }
+      e.preventDefault();
+      var at = Array.prototype.slice.call(tiles.children).indexOf(t);
+      commitOrder(at);
+    });
+  }
+
+  // The DOM is the source of truth while a drag is in flight; this reads the
+  // arrangement back into the model once the finger lifts. Matching on the
+  // element's position in the previous order rather than on its text, because
+  // two bottles in a drill can share a short name.
+  function commitOrder(focusAt) {
+    if (!drill || !drill.items) return;
+    var tiles = Array.prototype.slice.call($('tiles').children);
+    if (tiles.length !== drill.order.length) return;
+    var next = tiles.map(function (el) { return drill.order[+el.dataset.k]; });
+    if (next.indexOf(undefined) !== -1) return;
+    drill.order = next;
+    // a rearrangement after a check is a new answer, not a corrected one
+    drill.checked = false;
+    renderDrill();
+    if (focusAt !== undefined) {
+      var again = $('tiles').children[focusAt];
+      if (again) again.focus();
+    }
   }
 
   // ============================================================
@@ -1068,6 +1514,18 @@
     // added here is a row that silently never draws
     redraw();
     renderGuide();
+
+    // Learn and Practice both require a size, and Practice a category, so
+    // they open on the biggest-selling format rather than on an empty screen.
+    // SIZES and CATS are ordered by how much of the bank sits in each.
+    lSize = pSize = SIZES[0];
+    pCat = CATS[0];
+    wireDrag();
+    $('btn-drill-new').addEventListener('click', function () {
+      newDrill();
+      renderDrill();
+    });
+    $('btn-drill-check').addEventListener('click', checkDrill);
 
     $('btn-play').addEventListener('click', function () { startRound('free'); });
     $('btn-again').addEventListener('click', function () { startRound('free'); });

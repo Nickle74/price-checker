@@ -186,6 +186,61 @@
     </div>
   </section>
 
+  <!-- ===================== LEARN ===================== -->
+  <section class="view view--learn" id="view-learn" hidden>
+    <header class="topbar"><span class="wordmark">Learn the ladder</span></header>
+    <div class="scroll">
+      <p class="section-note section-note--top">One size at a time, so a price is a price. The same
+        bottle in 375mL and 1.75L would otherwise sit in the list twice at two
+        different numbers.</p>
+
+      <h2 class="section-h">Size</h2>
+      <div class="chips" id="l-size-chips"></div>
+
+      <h2 class="section-h">Category</h2>
+      <div class="chips" id="l-cat-chips"></div>
+
+      <h2 class="section-h">Price tier</h2>
+      <div class="chips" id="l-tier-chips"></div>
+
+      <h2 class="section-h" id="l-count">The ladder</h2>
+      <div class="ladder" id="ladder"></div>
+    </div>
+  </section>
+
+  <!-- ===================== PRACTICE ===================== -->
+  <!-- The drill comes before the filters. With the three chip rows above it
+       the tiles sat below the fold on a 667 phone: you arrived on the page
+       you had chosen and could not see the one thing it is for. -->
+  <section class="view view--practice" id="view-practice" hidden>
+    <header class="topbar"><span class="wordmark">Practice</span></header>
+    <div class="scroll">
+      <p class="section-note section-note--top">Drag the five into price order, cheapest on the left.</p>
+
+      <div class="drill" id="drill" hidden>
+        <div class="drill__ends"><span>Cheapest</span><span>Dearest</span></div>
+        <div class="tiles" id="tiles"></div>
+        <p class="drill__verdict" id="drill-verdict" hidden></p>
+      </div>
+      <p class="empty" id="drill-empty" hidden></p>
+
+      <div class="pad--duo" id="drill-actions">
+        <button class="btn btn--ghost" id="btn-drill-new">New five</button>
+        <button class="btn btn--primary" id="btn-drill-check">Check order</button>
+      </div>
+
+      <h2 class="section-h">Drawn from</h2>
+      <p class="section-note">One category and one size, so the only thing separating the
+        five is what the shelf charges. Several tiers is deliberate: inside one
+        tier the prices can sit a dollar or two apart, which is a memory test
+        rather than a judgement of where a bottle belongs.</p>
+
+      <div class="chips" id="p-size-chips"></div>
+      <div class="chips chips--next" id="p-cat-chips"></div>
+      <div class="chips chips--next" id="p-tier-chips"></div>
+    </div>
+  </section>
+
   <!-- ===================== STATS ===================== -->
   <section class="view view--stats" id="view-stats" hidden>
     <header class="topbar"><span class="wordmark">Your form</span></header>
@@ -231,6 +286,19 @@
         <p>Land within 15% and you start a streak. Every bottle after the first in a streak adds a <b>+50 bonus</b>, up to +250.</p>
       </div>
       <div class="card">
+        <h3>Learn</h3>
+        <p>The same shelf, laid out instead of hidden. Pick one size, then any
+        categories and tiers, and read the ladder cheapest to dearest with each
+        brand&rsquo;s <b>9-litre cases</b> beside it. The gaps are the lesson: two
+        bottles a dollar apart can be twenty times apart on volume.</p>
+      </div>
+      <div class="card">
+        <h3>Practice</h3>
+        <p>Five bottles from one category and one size, shuffled. Drag them into
+        price order, cheapest on the left, and check. No points and no clock
+        &mdash; it is the ladder from Learn with the prices taken away.</p>
+      </div>
+      <div class="card">
         <h3>Where the prices come from</h3>
         <p id="guide-source">Average retail price per item, straight from the distribution file.</p>
       </div>
@@ -242,6 +310,14 @@
     <button class="tab is-on" data-tab="home">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4.5l8 6.7"/><path d="M6.2 10v9h11.6v-9"/></svg>
       <span>Play</span>
+    </button>
+    <button class="tab" data-tab="learn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h6.2a2 2 0 0 1 2 2V19a1.8 1.8 0 0 0-1.8-1.6H4z"/><path d="M20 5.5h-6.2a2 2 0 0 0-2 2V19a1.8 1.8 0 0 1 1.8-1.6H20z"/></svg>
+      <span>Learn</span>
+    </button>
+    <button class="tab" data-tab="practice">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="9" width="4.4" height="11" rx="1.2"/><rect x="9.8" y="6" width="4.4" height="14" rx="1.2"/><rect x="16.1" y="3" width="4.4" height="17" rx="1.2"/></svg>
+      <span>Practice</span>
     </button>
     <button class="tab" data-tab="stats">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V11M12 19V5M19 19v-5"/></svg>

@@ -7,7 +7,7 @@
    bottle keeps that picture for good. Replacing 165 crowd-sourced photos with
    clean cutouts changed nothing on screen until this bumped -- the app went
    on serving a hand holding a bottle from a cache it had no reason to doubt. */
-var CACHE = 'price-check-v18';
+var CACHE = 'price-check-v19';
 var IMG_CACHE = 'price-check-img-v2';
 var IMG_CAP = 300;   // keep the installed footprint sane
 var ASSETS = [
