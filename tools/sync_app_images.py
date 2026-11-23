@@ -21,7 +21,9 @@ card's own background instead of carrying a white box across it.
 import argparse
 import csv
 import io
+import json
 import os
+import re
 
 from PIL import Image
 
@@ -29,10 +31,27 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 LIB = r"C:\Users\admin\OneDrive\Documents\Claude\Claude\Bottle Shots"
 MASTERS = os.path.join(LIB, "masters")
 MANIFEST = os.path.join(LIB, "manifest.csv")
+BANK = os.path.join(HERE, "..", "docs", "data", "bottles.js")
 OUT = os.path.join(HERE, "..", "docs", "img")
 
 HEIGHT = 400          # matches what is already published
 QUALITY = 82
+
+
+def bank_upcs():
+    """Only bottles the game can actually draw.
+
+    The library is deliberately wider than the bank: it keeps a master for
+    everything collected, including the bottles build_bank.py filters out for
+    thin distribution, for being non-alcoholic, or for being a 1L. Walking the
+    manifest alone published 132 images the app never asks for -- files in the
+    repository, in the Pages deploy and in the installed PWA's quota, for
+    bottles that are not in the game. If a filter later lets them back in, a
+    re-run puts them there in seconds.
+    """
+    src = io.open(BANK, encoding="utf-8").read()
+    rows = json.loads(re.search(r"window\.BOTTLES = (\[.*?\]);", src, re.S).group(1))
+    return {r["u"] for r in rows if r.get("u")}
 
 
 def main():
@@ -46,11 +65,15 @@ def main():
 
     os.makedirs(OUT, exist_ok=True)
     rows = list(csv.DictReader(io.open(MANIFEST, encoding="utf-8")))
+    wanted = bank_upcs()
 
-    added = replaced = skipped = missing = 0
+    added = replaced = skipped = missing = off_bank = 0
     for r in rows:
         upc = r["upc12"]
         if not upc:
+            continue
+        if upc not in wanted:
+            off_bank += 1
             continue
         src = os.path.join(MASTERS, r["filename"])
         if not os.path.exists(src):
@@ -80,8 +103,9 @@ def main():
 
     total = len(os.listdir(OUT)) if os.path.isdir(OUT) else 0
     size = sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT)) / 1e6
-    print("added %d, replaced %d, left alone %d, master missing %d"
-          % (added, replaced, skipped, missing))
+    print("added %d, replaced %d, left alone %d, master missing %d, "
+          "held back (not in the bank) %d"
+          % (added, replaced, skipped, missing, off_bank))
     print("docs/img now %d files, %.1f MB" % (total, size))
     print("\nremember to bump CACHE in docs/sw.js")
 
