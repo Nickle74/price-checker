@@ -192,8 +192,16 @@ def restore_upc(code):
     valid UPC-A, which is what the product images are keyed on.
 
     Returns None for the ~50 rows Excel destroyed into '3.77583E+11'.
+
+    Leading zeros are stripped FIRST, because the same code arrives padded in
+    some exports and truncated in others: Hartley is 8066058251 in one file
+    and 0008066058251 in another, the same eleven-digit core either way. The
+    length guard used to see thirteen digits and return None, which would
+    have emptied the UPC on every row of a padded file and quietly broken the
+    link between every bottle and its photograph. Stripping first is a no-op
+    for the truncated form, whose zeros Excel had already eaten.
     """
-    code = (code or "").strip()
+    code = (code or "").strip().lstrip("0")
     if not code.isdigit() or len(code) > 11:
         return None
     d = code.zfill(11)
