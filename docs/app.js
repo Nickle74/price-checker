@@ -1520,6 +1520,11 @@
     // SIZES and CATS are ordered by how much of the bank sits in each.
     lSize = pSize = SIZES[0];
     pCat = CATS[0];
+    // Learn opens on ONE category rather than All. Every category at once is
+    // 255 rows at 750mL, which is a long scroll before the screen tells you
+    // anything; one is a shelf you could stand in front of. All is still a
+    // tap away on the row.
+    lCats = [CATS[0]];
     wireDrag();
     $('btn-drill-new').addEventListener('click', function () {
       newDrill();
