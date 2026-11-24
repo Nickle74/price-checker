@@ -443,9 +443,17 @@ button{font:inherit;color:inherit;margin:0}
 
 /* ---------- reveal ---------- */
 .topbar--quiet{padding-top:18px}
-/* flex-start, not center: with the rank card the content can exceed a short
-   phone, and centred overflow clips the top beyond reach of the scroll */
-.scroll--reveal{display:flex;flex-direction:column;gap:16px;padding-top:12px;justify-content:flex-start}
+/* The reveal is one screen with the button pinned, for the same reason the
+   round is: .view is min-height:100dvh and simply grows, so "Next bottle"
+   sat 55px below the fold and had to be scrolled to after every guess. With
+   the by-size card added the content ran 907px on an 844 screen.
+   flex-start, not center: centred overflow clips the top beyond reach. */
+.view--reveal{height:100dvh;overflow:hidden}
+.scroll--reveal{
+  display:flex;flex-direction:column;gap:12px;padding-top:10px;
+  justify-content:flex-start;
+  min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+}
 
 .verdict{
   display:flex;flex-direction:column;align-items:center;gap:4px;
@@ -460,8 +468,8 @@ button{font:inherit;color:inherit;margin:0}
 .verdict.is-mid  .verdict__band{background:var(--mid);border-color:var(--mid);color:#fff}
 .verdict.is-bad  .verdict__band{background:var(--bad);border-color:var(--bad);color:#fff}
 .verdict__pts{
-  font-size:clamp(50px,14vw,66px);font-weight:600;letter-spacing:-.05em;
-  font-variant-numeric:tabular-nums;line-height:1.08;margin-top:6px;
+  font-size:clamp(42px,11.5vw,56px);font-weight:600;letter-spacing:-.05em;
+  font-variant-numeric:tabular-nums;line-height:1.06;margin-top:2px;
 }
 .verdict__sub{font-size:14px;color:var(--ink-2)}
 
@@ -469,10 +477,10 @@ button{font:inherit;color:inherit;margin:0}
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:var(--r-card);
-  padding:18px 20px 20px;
+  padding:14px 18px 16px;
   animation:rise .4s .06s cubic-bezier(.2,.8,.3,1) both;
 }
-.compare__row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:14px}
+.compare__row{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:10px}
 .compare__side{display:flex;flex-direction:column;gap:2px;min-width:0}
 .compare__side--r{text-align:right;align-items:flex-end}
 .compare__l{font-size:11px;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-3)}
@@ -482,8 +490,8 @@ button{font:inherit;color:inherit;margin:0}
 .compare__fill{display:block;height:100%;border-radius:4px;background:var(--ink);width:0;transition:width .6s cubic-bezier(.2,.8,.3,1)}
 
 .recap{
-  font-size:14px;color:var(--ink-2);text-align:center;
-  padding:0 8px;line-height:1.5;
+  font-size:13.5px;color:var(--ink-2);text-align:center;
+  padding:0 8px;line-height:1.45;
   animation:rise .4s .12s cubic-bezier(.2,.8,.3,1) both;
 }
 .recap b{color:var(--ink);font-weight:600}
@@ -493,7 +501,7 @@ button{font:inherit;color:inherit;margin:0}
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:var(--r-card);
-  padding:16px 18px 14px;
+  padding:13px 18px 11px;
   animation:rise .4s .16s cubic-bezier(.2,.8,.3,1) both;
 }
 .ranks[hidden]{display:none}
@@ -903,3 +911,78 @@ button.lrow:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
    brand and tier the volume figure is the same number on every row */
 .ladder--also .lrow{grid-template-columns:1fr auto}
 .ladder--also .lrow__price{font-size:14px}
+
+
+/* ---------- the same bottle in its other formats ---------- */
+/* 56% of the bank shares a name with at least one other size, and the gap
+   between them is the thing a rep is actually asked about: a 1.75L E&J is
+   $20.99 and the 375mL is $6.99, which is nearly twice the price per litre
+   for the small one. Price alone does not show that, so the per-litre figure
+   sits beside it. */
+.sizes{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--r-card);
+  padding:14px 18px 12px;
+  animation:rise .4s .1s cubic-bezier(.2,.8,.3,1) both;
+}
+.sizes[hidden]{display:none}
+.srow{
+  display:grid;
+  grid-template-columns:58px 1fr auto;
+  align-items:baseline;gap:10px;
+  padding:5px 8px;margin:0 -8px;
+  border-radius:10px;
+  font-size:13.5px;color:var(--ink-2);
+}
+.srow__size{font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.srow__price{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
+.srow__per{font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;text-align:right}
+.srow.is-me{background:var(--ink);color:#fff}
+.srow.is-me .srow__size,.srow.is-me .srow__price{color:#fff}
+.srow.is-me .srow__per{color:rgba(255,255,255,.65)}
+/* cheapest per litre, which is not always the biggest bottle */
+.srow.is-best .srow__per{color:var(--good);font-weight:600}
+.srow.is-me.is-best .srow__per{color:#9FE3C0}
+
+
+/* ---------- reveal: one screen ----------
+   The by-size card carries the size and the compare card carries the price
+   in large type, so the rank card's sub-line ("Average retail in Super
+   Premium at 355mL, this one went for $11.99") says nothing on THIS screen
+   that is not already above it twice. It stays on the bottle card in Learn,
+   where it is the only thing giving the price column its scope. */
+.view--reveal .ranks__sub{display:none}
+.view--reveal .ranks__h{margin-bottom:8px}
+.view--reveal .rrow{padding:4px 8px}
+.view--reveal .sizes{padding:11px 18px 9px}
+.view--reveal .srow{padding:4px 8px}
+.view--reveal .verdict__sub{font-size:13px}
+
+/* 812-tall phones (X, 11 Pro, 12/13 mini) are 28px short of the fullest
+   card this screen can build: four sizes, a streak badge and three comps.
+   The same pixels the round view gives up here. */
+@media (max-height:830px){
+  .view--reveal .verdict__pts{font-size:46px;margin-top:0}
+  .view--reveal .verdict__band{font-size:11.5px;padding:4px 12px}
+  .view--reveal .recap{font-size:13px}
+  .view--reveal .compare{padding:12px 17px 14px}
+  .scroll--reveal{gap:10px}
+}
+
+/* a 667 phone cannot hold a verdict, a compare, a recap, four sizes, three
+   comps and a button at once; it gives up the ornament and then scrolls the
+   card area, with the button staying pinned */
+@media (max-height:720px){
+  .view--reveal .verdict__pts{font-size:38px;margin-top:0}
+  .view--reveal .verdict__band{font-size:11px;padding:4px 11px}
+  .view--reveal .recap{font-size:12.5px;line-height:1.4}
+  .view--reveal .compare{padding:11px 16px 13px}
+  .view--reveal .compare__v{font-size:21px}
+  .view--reveal .ranks{padding:11px 16px 9px}
+  .view--reveal .rrow{font-size:12.5px;padding:3px 8px}
+  .view--reveal .srow{font-size:12.5px;padding:3px 8px}
+  .view--reveal .sizes{padding:9px 16px 8px}
+  .view--reveal .topbar--quiet{padding-top:8px}
+  .scroll--reveal{gap:8px;padding-top:6px}
+}

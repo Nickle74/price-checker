@@ -1332,6 +1332,7 @@
     recap.appendChild(strong);
     recap.appendChild(document.createTextNode(' on ' + label(b) + ', ' + b.s + '.'));
 
+    renderSizes(b);
     renderRanks(b);
 
     var st = $('v-streak');
@@ -1391,8 +1392,12 @@
       from = 0;
       to = all.length;
     } else {
-      // two either side, sliding inwards at the ends; a thin segment shows fewer
-      var span = Math.min(5, all.length);
+      // One either side, sliding inwards at the ends; a thin segment shows
+      // fewer. Three rather than five since the by-size card joined this
+      // screen: the comparison a player reads mid-round is the brand just
+      // above and just below, and the whole segment is on the bottle's card
+      // in Learn for anyone who wants it.
+      var span = Math.min(ids.span || 5, all.length);
       from = Math.max(0, Math.min(at - 2, all.length - span));
       to = Math.min(all.length, from + span);
     }
@@ -1434,8 +1439,95 @@
     box.hidden = false;
   }
 
+  // ---------- the same bottle in its other formats ----------
+  // Asked on the reveal because that is where the player has just committed
+  // to a number and is most willing to be told what the rest of the shelf
+  // costs. 56% of the bank shares a name with another size, and never more
+  // than three others, so this stays short.
+  var SIZE_ML = { "50mL": 50, "100mL": 100, "200mL": 200, "250mL": 250,
+                  "355mL": 355, "375mL": 375, "500mL": 500, "700mL": 700,
+                  "750mL": 750, "1L": 1000, "1.75L": 1750 };
+
+  function mlOf(b) {
+    if (SIZE_ML[b.s]) return SIZE_ML[b.s] * (b.k || 1);
+    var m = /^([\d.]+)\s*(mL|L)$/i.exec(b.s || "");
+    if (!m) return null;
+    var v = parseFloat(m[1]);
+    return (m[2].toLowerCase() === "l" ? v * 1000 : v) * (b.k || 1);
+  }
+
+  var sizeKin = (function () {
+    var m = {};
+    BOTTLES.forEach(function (b) {
+      var k = b.b + "\u0000" + b.n;
+      (m[k] = m[k] || []).push(b);
+    });
+    return function (b) {
+      var all = m[b.b + "\u0000" + b.n] || [];
+      // one row per size: the same name at the same size twice is the
+      // duplicate the bank already resolves, not a format to compare against
+      var seen = {}, out = [];
+      all.forEach(function (x) {
+        if (seen[x.s]) return;
+        seen[x.s] = 1;
+        out.push(x);
+      });
+      return out.length > 1 ? out : [];
+    };
+  })();
+
+  function renderSizes(b) {
+    var box = $('v-sizes'), list = $('v-sizes-list');
+    var kin = sizeKin(b);
+    if (kin.length < 2) { box.hidden = true; return; }
+
+    kin = kin.slice().sort(function (x, y) { return (mlOf(x) || 0) - (mlOf(y) || 0); });
+    $('v-sizes-h').textContent = label(b) + ' by size';
+
+    // cheapest per litre, which is not reliably the biggest bottle
+    var best = null;
+    kin.forEach(function (x) {
+      var ml = mlOf(x);
+      if (!ml) return;
+      var per = x.p / (ml / 1000);
+      if (best === null || per < best) best = per;
+    });
+
+    list.innerHTML = '';
+    kin.forEach(function (x) {
+      var row = document.createElement('div');
+      row.className = 'srow' + (x === b ? ' is-me' : '');
+
+      var sz = document.createElement('span');
+      sz.className = 'srow__size';
+      sz.textContent = x.s + (x.k ? ' · ' + x.k + 'pk' : '');
+      row.appendChild(sz);
+
+      var pr = document.createElement('span');
+      pr.className = 'srow__price';
+      pr.textContent = money(x.p);
+      row.appendChild(pr);
+
+      var per = document.createElement('span');
+      per.className = 'srow__per';
+      var ml = mlOf(x);
+      if (ml) {
+        var v = x.p / (ml / 1000);
+        per.textContent = money(v) + '/L';
+        if (best !== null && Math.abs(v - best) < 0.005) row.classList.add('is-best');
+      } else {
+        per.textContent = '—';
+      }
+      row.appendChild(per);
+
+      list.appendChild(row);
+    });
+    box.hidden = false;
+  }
+
   function renderRanks(b) {
-    fillRanks(b, { box: 'v-ranks', head: 'v-ranks-h', sub: 'v-ranks-sub', list: 'v-ranks-list' },
+    fillRanks(b, { box: 'v-ranks', head: 'v-ranks-h', sub: 'v-ranks-sub',
+                   list: 'v-ranks-list', span: 3 },
       false, 'Average retail in ' + b.t + ' at ' + b.s + ' \u00b7 this one went for ' + money(b.p));
   }
 
