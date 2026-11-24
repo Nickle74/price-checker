@@ -313,10 +313,29 @@ def index_shop(products):
 # tiers, and those are guarded.
 FILLER = (GENERIC - {"bourbon", "scotch"}) | {"original"}
 
-# Our file says Assorted where a retailer says Variety; they are the same
-# pack. Treated as one word rather than as filler, so a variety pack still
-# cannot match a single-flavour one.
-SYNONYM = {"assorted": "variety"}
+# Words that are the same thing under two names. Folded rather than dropped,
+# so a variety pack still cannot match a single-flavour one.
+#
+#   assorted / variety  -- our file's word against the retailers'.
+#   silver / plata / blanco -- the same unaged tequila. These matter to the
+#   DISTINCT tests below: without the fold, "Don Julio Silver" carries a
+#   DISTINCT word that "Don Julio Blanco Tequila" lacks, and the mirror test
+#   would throw away a pair that is plainly the same bottle.
+SYNONYM = {"assorted": "variety", "silver": "blanco", "plata": "blanco"}
+
+# Plural and participle forms of words that are already DISTINCT. Without
+# these the mirror test reads a word form as a different product: "Woodford
+# Reserve Double Oak" carries `oak`, the listing says "Double Oaked", and the
+# pair is refused over a letter. Found by scanning the 143,744 listings for
+# every DISTINCT word whose -ed/-s/-d variant appears on its own; no general
+# stemmer, because stemming "black" and "blackberry" together is exactly the
+# mistake this file keeps having to undo.
+SYNONYM.update({
+    "barreled": "barrel", "barrels": "barrel", "casks": "cask",
+    "drops": "drop", "editions": "edition", "grapes": "grape",
+    "lakes": "lake", "oaked": "oak", "oaks": "oak",
+    "reserves": "reserve", "roses": "rose", "selected": "select",
+})
 
 
 def fold(tokens):
@@ -391,9 +410,23 @@ def score(b, cand):
         # a filtered tequila and a different product at a different price.
         if ours and (theirs - ours):
             return 0.0
-    # the same test, but for a qualifier we have no word of our own to compare
-    # against. See DISTINCT.
-    if (cand["tokens"] & DISTINCT) - bt:
+    # The same test, but for a qualifier there is no word of our own to
+    # compare against. See DISTINCT. Both directions, because a distinctive
+    # word is distinctive whichever side holds it: a retailer's listing with
+    # a word we lack is a richer product than ours, and OUR name with a word
+    # the listing lacks is a richer product than theirs. Only the first was
+    # tested, so "Jack Daniels Tennessee Honey" matched "jack daniels
+    # tennessee whiskey", "Evan Williams Black" matched plain Evan Williams,
+    # and "1800 Silver Coconut" matched "1800 Silver Tequila".
+    #
+    # The mirror costs nothing where it is not needed: measured over every
+    # bottle in the bank without a photograph, not one match at 0.84 or above
+    # carries a one-sided word of ours. It bites only below that bar, which
+    # is what makes a lower bar worth considering at all.
+    bf, cf = fold(bt), fold(cand["tokens"])
+    if (cf & DISTINCT) - bf:
+        return 0.0
+    if (bf & DISTINCT) - cf:
         return 0.0
     if proof(b["n"]) != proof(cand["title"]):
         return 0.0
