@@ -44,6 +44,17 @@ GENERIC = {"tequila", "vodka", "rum", "gin", "whiskey", "whisky", "bourbon",
            "scotch", "cognac", "brandy", "cordial", "cocktail", "liqueur",
            "seltzer", "wine", "spirits", "alcohol", "non", "alcoholic", "nonalc"}
 
+# Places, which belong to a style rather than to a maker. The brand test asks
+# only that ONE of the brand's words appears in the listing, and "Kentucky"
+# appears in hundreds of bourbon titles -- so "Kentucky Deluxe" matched
+# "Bulleit Bourbon Kentucky Straight" and "willett kentucky straight bourbon",
+# two different distilleries. Stripped from the BRAND tokens only: a title is
+# still free to say Kentucky, and a brand whose words are all places falls
+# through to the squashed-string test below.
+GEO = {"kentucky", "tennessee", "canadian", "irish", "mexican", "caribbean",
+       "highland", "islay", "speyside", "jalisco", "barbados", "jamaica",
+       "puerto", "rico", "france", "french", "london", "dry"}
+
 # Mutually exclusive descriptors. If both names state one from the same group
 # and they differ, it is a different product however well the rest overlaps:
 # Woodford Double Oaked Rye is not Woodford Double Oak Bourbon.
@@ -380,7 +391,7 @@ def score(b, cand):
 
     bt = set(norm_tokens(b["n"]))
     # the maker's own words, not the category it sits in
-    brand = set(norm_tokens(b["b"])) - GENERIC
+    brand = set(norm_tokens(b["b"])) - GENERIC - GEO
     if not brand:
         # Brands like "E&J" reduce to single characters, which norm_tokens
         # drops -- leaving an empty set that skipped the check entirely and

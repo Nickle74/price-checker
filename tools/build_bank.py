@@ -13,6 +13,17 @@ OUT = "C:/Users/admin/OneDrive/Documents/Claude/Claude/Price Checker/docs/data/b
 CONTAINERS = ("GLASS","PLASTIC","ALUMINUM","CAN","TETRA","POUCH","BOX","CARTON","PET","ALUM")
 
 ABBR = {
+ # Sixth pass. These are the vowel-less survivors, found by scanning the bank
+ # for tokens with no vowel at all rather than by reading names one at a time.
+ # Two of them were costing images as well as reading badly: "Deep Eddy
+ # Crnbry" and "New Amsterdam Pnpl" matched the retailers' PLAIN vodka,
+ # because with the flavour still compressed the DISTINCT guard had no word
+ # to see and refuse.
+ "PNPL":"Pineapple","CRNBRY":"Cranberry","PMNT":"Peppermint","CSMPLTN":"Cosmopolitan",
+ "JLPN":"Jalapeno","MGRT":"Margarita","TRDCNL":"Tradicional","SCHNP":"Schnapps",
+ "CHCLT":"Chocolate","CLCS":"Clasico","BLNC":"Blanco","CRSTL":"Cristalino",
+ "MZCL":"Mezcal","CMBR":"Cucumber","TWST":"Twist","BLSM":"Blossom",
+ "BTCH":"Batch","DBLWD":"Doublewood","EGGNG":"Eggnog","SM":"Small",
  "WSKY":"Whiskey","WSK":"Whiskey","WHSKY":"Whiskey","BRBN":"Bourbon","CNDN":"Canadian",
  "STRT":"Straight","SNGL":"Single","SNG":"Single","BRL":"Barrel","RSV":"Reserve","RSRV":"Reserve",
  "RESV":"Reserve","TQLA":"Tequila","RPSDO":"Reposado","ANEJO":"Anejo","CRDL":"Cordial",
