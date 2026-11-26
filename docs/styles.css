@@ -793,21 +793,21 @@ button{font:inherit;color:inherit;margin:0}
   margin-bottom:7px;
 }
 .tiles{
-  display:flex;gap:6px;
+  display:flex;gap:5px;
   align-items:stretch;
   /* the blank plane: a plain tray with nothing on it but the five */
-  padding:10px 8px;
+  padding:10px 6px;
   background:var(--surface-2);
   border:1px solid var(--line);
   border-radius:var(--r-lg);
-  min-height:162px;
+  min-height:232px;
 }
 .tile{
   flex:1 1 0;min-width:0;
   background:var(--surface);
   border:1px solid var(--line);
   border-radius:14px;
-  padding:7px 4px 6px;
+  padding:8px 3px 7px;
   display:flex;flex-direction:column;align-items:center;gap:4px;
   /* the gesture is a drag, so the browser must not read it as a scroll */
   touch-action:none;
@@ -816,21 +816,29 @@ button{font:inherit;color:inherit;margin:0}
   -webkit-user-select:none;user-select:none;
 }
 .tile__shot{
-  height:56px;width:100%;
+  /* A fifth of a 390 phone is about 64px, and a bottle is roughly 0.38 as
+     wide as it is tall -- so at the old flat 56px it drew 21px across and
+     left two thirds of the tile empty. Height is the binding dimension, not
+     width: at 150px the same bottle is 57px across and only then starts to
+     touch the sides. Multipack cartons are nearly square and stay limited by
+     width, which is why they grow far less than the bottles do. */
+  height:clamp(104px,17.5vh,150px);
+  width:100%;
   display:flex;align-items:center;justify-content:center;
   pointer-events:none;
 }
 .tile__shot img,.tile__shot svg{height:100%;width:auto;max-width:100%;object-fit:contain;display:block}
 .tile__name{
-  font-size:9.5px;line-height:1.2;text-align:center;
+  font-size:11px;line-height:1.22;text-align:center;
   color:var(--ink-2);
-  /* three lines, not two: a fifth of a phone is 62px, which is about eleven
-     characters a line, and "Macallan 15 Year Double Cask" needs all three */
-  max-height:3.6em;overflow:hidden;
+  letter-spacing:-.01em;
+  /* three lines: a fifth of a phone is about 64px, which is ten characters a
+     line at this size, and "Macallan 15 Year Double Cask" needs all three */
+  max-height:3.66em;overflow:hidden;
   pointer-events:none;
 }
 .tile__price{
-  font-size:12px;font-weight:600;letter-spacing:-.02em;
+  font-size:13.5px;font-weight:600;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums;
   pointer-events:none;
 }
