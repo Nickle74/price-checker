@@ -89,7 +89,23 @@ KEEP_UPPER = {"XO","VS","VSOP","XXO","XXL","NA","RTD","IPA","USA","DIY","VMC","L
 # left compressed it printed "Elijah Craig Straight Bourbon Sml Bt" on
 # the card.
 PHRASES = {"LG IS": "LONG ISLAND", "SML BT": "SMALL BATCH",
-           "SM BT": "SMALL BATCH", "SGL BRL": "SINGLE BARREL"}
+           "SM BT": "SMALL BATCH", "SGL BRL": "SINGLE BARREL",
+           # Found by scanning the bank for two- and three-letter tokens that
+           # are not words. Each one printed on a card as written: "Jim Beam
+           # Rd Stg Black Ch Bourbon Whiskey" was the worst of them. BLACK CH
+           # also hid a flavour -- cherry is DISTINCT, and compressed to "CH"
+           # there was nothing for the guard to compare against, the same
+           # fault that had Deep Eddy Crnbry matching plain Deep Eddy.
+           # These must match the RAW string, before ABBR runs: the file says
+           # "BLK CH", not "BLACK CH", because BLK only becomes Black later.
+           "RD STG": "RED STAG", "BLK CH": "BLACK CHERRY",
+           "WHT CH": "WHITE CHOCOLATE", "IRISH CR": "IRISH CREAM",
+           "RR GRAPEFRUIT": "RUBY RED GRAPEFRUIT", "EX DRY": "EXTRA DRY",
+           "EH TAYLOR": "E.H. TAYLOR", "TAYLOR SB": "TAYLOR SMALL BATCH"}
+# Not expanded, on purpose: "COLONEL EH TAYLOR KN STRAIGHT BOURBON". KN is
+# not a form of any E.H. Taylor expression I can verify, and a name invented
+# to tidy a card is worse on the card than an abbreviation that is at least
+# faithful to the price file.
 SIZES_OK = {"750ML","1.75L","1L","375ML","700ML","355ML","500ML"}
 
 # Sizes held out of the game for now. 1L went at Nick's request: in a
@@ -290,6 +306,12 @@ for r in rows:
         "t": TIER_LABEL.get(r["price_tier"], r["price_tier"].title()),
         "f": proof_of(r["item"]),
         "a": accts,
+        # This item's OWN 9-litre cases. BRAND_RANKS carries the brand total,
+        # which is the right figure for "where does this brand sit in its
+        # segment" and the wrong one for a ladder of items: it printed 31,114
+        # against all three Mom Waters and 26,929 against all three New Mixes,
+        # so a column headed 9L CASES was repeating one number down the page.
+        "v": round(float(r["nine_l_cases"] or 0)),
         "u": restore_upc(r["upc"]),
         "k": pack_of(r["item"]),
     })
@@ -360,7 +382,7 @@ print("rank segments: %d kept, %d dropped as unreachable" % (len(ranks), len(dro
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 with open(OUT, "w", encoding="utf-8") as fh:
     fh.write("// Generated from 'Average Price Checker.csv' — do not edit by hand.\n")
-    fh.write("// i=index c=category b=brand n=name s=size p=avg retail price\n")
+    fh.write("// i=index c=category b=brand n=name s=size p=avg retail price v=9L cases (item)\n")
     fh.write("// t=tier f=proof a=accounts u=restored UPC-A (null where Excel ate it)\n")
     fh.write("// k=pack size for multipacks, null for single bottles\n")
     fh.write("window.BOTTLES = ")

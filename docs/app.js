@@ -641,14 +641,17 @@
       return;
     }
 
-    // The volume figures only compare with each other inside ONE category and
-    // tier. Mix two of either and the column is still true row by row, but
-    // the leader of the list means nothing, so nothing is marked.
-    var cats = {}, tiers = {};
-    rows.forEach(function (b) { cats[b.c] = 1; tiers[b.t] = 1; });
-    var comparable = Object.keys(cats).length === 1 && Object.keys(tiers).length === 1;
+    // The category-and-tier caveat that used to live here is gone with the
+    // figure it applied to. A brand total only compared with other brands in
+    // the same segment; an item's own cases compare with any other item's,
+    // whatever the ladder is filtered to.
+    //
+    // the item's OWN cases. volOf() is the brand total, which is the right
+    // figure for the rank card below and the wrong one here -- it printed
+    // 31,114 against every Mom Water and 26,929 against every New Mix, so a
+    // column of items was repeating one number down the page.
     var topVol = 0;
-    if (comparable) rows.forEach(function (b) { topVol = Math.max(topVol, volOf(b) || 0); });
+    rows.forEach(function (b) { topVol = Math.max(topVol, b.v || 0); });
 
     var head = document.createElement('div');
     head.className = 'ladder__head';
@@ -664,8 +667,10 @@
       r.type = 'button';
       r.className = 'lrow';
       r.addEventListener('click', function () { openCard(b); });
-      var vol = volOf(b);
-      if (comparable && vol && vol === topVol) r.classList.add('is-top');
+      var vol = b.v;
+      // the ladder's own leader, which needs no category-and-tier caveat now
+      // that the figure belongs to the item rather than to its brand
+      if (vol && vol === topVol) r.classList.add('is-top');
 
       var pos = document.createElement('span');
       pos.className = 'lrow__pos';
@@ -699,9 +704,7 @@
 
     var foot = document.createElement('div');
     foot.className = 'ladder__foot';
-    foot.textContent = comparable
-      ? '9-litre cases over 52 weeks, in ' + rows[0].t + ' ' + rows[0].c
-      : '9-litre cases over 52 weeks, each brand in its own category and tier — not comparable down the list';
+    foot.textContent = '9-litre cases over 52 weeks, for the item itself';
     box.appendChild(foot);
   }
 
@@ -784,8 +787,9 @@
       money(b.p), null, 'fig--lead');
 
     var vol = volOf(b);
-    addFig(figs, '9-litre cases, 52 weeks', vol ? num(Math.round(vol)) : '—',
-      vol ? b.b + ' in ' + b.t + ' ' + b.c : 'not ranked in this segment');
+    addFig(figs, '9-litre cases, 52 weeks', b.v ? num(b.v) : '—',
+      vol ? 'this item; ' + b.b + ' is ' + num(Math.round(vol)) + ' in ' + b.t + ' ' + b.c
+          : 'this item');
     addFig(figs, 'Distribution', distPct(b.a), 'of ' + num(MAX_ACCOUNTS) + ' accounts');
     if (b.f) addFig(figs, 'Strength', b.f);
     addFig(figs, 'Size', b.s);
@@ -985,7 +989,7 @@
       v.appendChild(strong);
       v.appendChild(document.createTextNode(hits === DRILL_N
         ? ' — the whole ladder, in order.'
-        : ' in the right place. Cheapest to dearest runs ' +
+        : ' in the right place. Cheapest to most expensive runs ' +
           correct.map(function (b) { return shortName(b); }).join(' → ') + '.'));
       v.hidden = false;
     } else {
