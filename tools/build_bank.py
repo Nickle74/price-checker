@@ -83,7 +83,13 @@ ABBR = {
 KEEP_UPPER = {"XO","VS","VSOP","XXO","XXL","NA","RTD","IPA","USA","DIY","VMC","LBV","TLC","DTG"}
 # PHRASES expand across two words, before tokenising. "IS" cannot go in ABBR
 # as Island -- it is an ordinary word everywhere else -- but "LG IS" is not.
-PHRASES = {"LG IS": "LONG ISLAND"}
+# Two-word abbreviations, expanded before tokenising so neither half is
+# read on its own. "BT" alone is too short and too common to put in ABBR
+# -- it would rewrite any stray B-T -- but "SML BT" is unambiguous, and
+# left compressed it printed "Elijah Craig Straight Bourbon Sml Bt" on
+# the card.
+PHRASES = {"LG IS": "LONG ISLAND", "SML BT": "SMALL BATCH",
+           "SM BT": "SMALL BATCH", "SGL BRL": "SINGLE BARREL"}
 SIZES_OK = {"750ML","1.75L","1L","375ML","700ML","355ML","500ML"}
 
 # Sizes held out of the game for now. 1L went at Nick's request: in a
