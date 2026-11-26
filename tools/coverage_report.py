@@ -74,6 +74,30 @@ def verdicts():
     return out
 
 
+def stale_verdicts():
+    """Published photographs newer than the audit that judged them.
+
+    The audit is a file, not a measurement taken at report time, so a
+    replaced photograph keeps its old verdict until photo_audit.py runs
+    again. That is quiet and it is wrong in the direction that matters: a
+    bottle whose bad picture has just been replaced still reads "poor",
+    still appears on the To shoot sheet, and still counts against coverage.
+
+    It happened. Twenty bottles fixed over one morning -- Angel's Envy, the
+    Cutwater carton, the Kraken counter shot -- were all still being
+    reported as poor against an audit written before any of them were
+    filed, and the published files were byte-identical to ones the same run
+    called good.
+    """
+    if not os.path.exists(AUDIT):
+        return []
+    cut = os.path.getmtime(AUDIT)
+    if not os.path.isdir(IMG):
+        return []
+    return sorted(os.path.splitext(f)[0] for f in os.listdir(IMG)
+                  if os.path.getmtime(os.path.join(IMG, f)) > cut)
+
+
 def gtin14(upc):
     return re.sub(r"\D", "", str(upc)).zfill(14)
 
@@ -178,6 +202,17 @@ def main():
     if not vd:
         print("NOTE: no photo_audit.csv, so nothing is marked poor. "
               "Run photo_audit.py first.")
+    else:
+        late = stale_verdicts()
+        if late:
+            print("\nWARNING: %d published photograph%s newer than the audit "
+                  "that judged %s." % (len(late), "" if len(late) == 1 else "s",
+                                       "it" if len(late) == 1 else "them"))
+            print("The good/poor split above is wrong for %s. Run "
+                  "photo_audit.py, then this again."
+                  % ("that one" if len(late) == 1 else "those"))
+            print("  " + ", ".join(late[:12])
+                  + (" ..." if len(late) > 12 else ""))
 
 
 if __name__ == "__main__":
