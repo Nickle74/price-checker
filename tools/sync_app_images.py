@@ -15,6 +15,7 @@ card's own background instead of carrying a white box across it.
 
     python sync_app_images.py              # add what is missing
     python sync_app_images.py --replace    # also overwrite existing files
+    python sync_app_images.py --only 816751021238 --replace
     python sync_app_images.py --dry-run
 """
 
@@ -60,17 +61,34 @@ def main():
                     help="overwrite files the app already has. Worth doing: "
                          "the originals came from crowd-sourced photographs "
                          "and some are a hand holding a bottle, or a barcode.")
+    ap.add_argument("--only", nargs="+", metavar="UPC",
+                    help="publish just these bottles. --replace re-encodes "
+                         "every master, which is minutes of work; when a "
+                         "handful of photographs have just been re-cut, that "
+                         "is the whole run spent on files that did not "
+                         "change. Takes the 12-digit UPC, as the filename "
+                         "does.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     os.makedirs(OUT, exist_ok=True)
     rows = list(csv.DictReader(io.open(MANIFEST, encoding="utf-8")))
     wanted = bank_upcs()
+    only = None
+    if args.only:
+        only = {u.strip().lstrip("0").zfill(12) for u in args.only}
+        unknown = only - {r["upc12"] for r in rows}
+        if unknown:
+            print("not in the manifest: %s" % ", ".join(sorted(unknown)))
 
     added = replaced = skipped = missing = off_bank = 0
     for r in rows:
         upc = r["upc12"]
         if not upc:
+            continue
+        # Before the bank check, so a narrowed run does not report every
+        # other bottle in the library as held back.
+        if only is not None and upc not in only:
             continue
         if upc not in wanted:
             off_bank += 1
