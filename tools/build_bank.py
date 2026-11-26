@@ -297,10 +297,25 @@ for r in rows:
     if not (4.0 <= price <= 400): skipped["price outlier"] += 1; continue
     if title_brand(r["brand"]) in SMALL_BRANDS:
         skipped["brand under %g cases" % MIN_BRAND_CASES] += 1; continue
+    # VAP is the trade's "value added pack": a gift set, a bottle boxed with
+    # glasses, a tin. ABBR renders it "Gift Set". These are line priced with
+    # the plain bottle of the same size, so the card asks for a price the
+    # player cannot tell from the bottle already in the book.
+    #
+    # Tested on the CLEANED name, not on the raw VAP token. clean_item cuts
+    # the string at the container word, so a row like "TX DOM STRT BRBN WSKY
+    # GLASS VAP 82 PROOF 750ML" never shows "Gift Set" on the card at all --
+    # and it is the only row for that product, in 405 accounts. Filtering the
+    # raw token threw it away for a label it does not carry.
+    name = clean_item(r["item"], r["brand"])
+    if "Gift Set" in name:
+        skipped["gift set"] += 1
+        continue
+
     kept_rows.append({
         "c": CAT_LABEL.get(r["category"], r["category"].title()),
         "b": title_brand(r["brand"]),
-        "n": clean_item(r["item"], r["brand"]),
+        "n": name,
         "s": r["size"].replace("ML", "mL"),
         "p": nearest_99(price),
         "t": TIER_LABEL.get(r["price_tier"], r["price_tier"].title()),
