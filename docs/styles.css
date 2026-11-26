@@ -837,6 +837,17 @@ button{font:inherit;color:inherit;margin:0}
   max-height:3.66em;overflow:hidden;
   pointer-events:none;
 }
+.tile__size{
+  /* Sits between the name and the price, quieter than both: it is the unit
+     the price is in, not a third thing to read. Kept tight because the tile
+     has no spare height -- the shot above it is already clamped against the
+     viewport. */
+  font-size:10px;line-height:1.1;
+  color:var(--ink-3);
+  letter-spacing:.01em;
+  font-variant-numeric:tabular-nums;
+  pointer-events:none;
+}
 .tile__price{
   font-size:13.5px;font-weight:600;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums;

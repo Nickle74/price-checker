@@ -961,13 +961,23 @@
       // which slot of the CURRENT order this tile came from; commitOrder reads
       // it back after a drag has rearranged the row
       el.dataset.k = String(i);
-      el.setAttribute('aria-label', shortName(b) + (drill.checked ? ', ' + money(b.p) : ''));
+      el.setAttribute('aria-label', shortName(b) + ', ' + b.s +
+        (drill.checked ? ', ' + money(b.p) : ''));
       el.appendChild(miniShot(b));
 
       var nm = document.createElement('span');
       nm.className = 'tile__name';
       nm.textContent = shortName(b);
       el.appendChild(nm);
+
+      // A drill is one size throughout -- practicePool filters on it -- so
+      // this repeats down the row. It earns the line anyway: while you are
+      // dragging you are looking at the tiles, not back up at the chip that
+      // set the size, and what a bottle costs is meaningless without it.
+      var sz = document.createElement('span');
+      sz.className = 'tile__size';
+      sz.textContent = b.s;
+      el.appendChild(sz);
 
       var pr = document.createElement('span');
       pr.className = 'tile__price';
